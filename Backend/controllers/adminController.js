@@ -1,0 +1,157 @@
+const Submission = require('../models/submission');
+const Test = require('../models/test');
+const eventController = require('./eventController');
+const { completeTestAndAutoSubmit } = require('../services/testLifecycleService');
+
+exports.createTest = async (req, res) => {
+  try {
+    const { title, description, durationInMinutes, questions } = req.body;
+
+    const newTest = new Test({
+      title,
+      description,
+      durationInMinutes,
+      questions,
+      status: 'scheduled'
+    });
+
+    await newTest.save();
+    res.status(201).json({ message: 'Test created successfully', test: newTest });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.startTest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const test = await Test.findByIdAndUpdate(
+      id,
+      { status: 'active', startedAt: new Date(), completedAt: null },
+      { new: true }
+    );
+
+    if (!test) return res.status(404).json({ message: 'Test not found' });
+
+    eventController.broadcastEvent(id, { type: 'START', testId: id, startedAt: test.startedAt });
+
+    res.json({ message: 'Test started successfully', test });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.openWaitingRoom = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const test = await Test.findByIdAndUpdate(
+      id,
+      { status: 'waiting' },
+      { new: true }
+    );
+
+    if (!test) return res.status(404).json({ message: 'Test not found' });
+
+    res.json({ message: 'Waiting room opened', test });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.completeTest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await completeTestAndAutoSubmit(id, 'admin_mark_completed');
+
+    if (!result.found) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+
+    res.json({
+      message: result.alreadyCompleted ? 'Test already completed' : 'Test marked as completed',
+      autoSubmittedCount: result.autoSubmittedCount,
+      test: result.test
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.autoSubmitTest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await completeTestAndAutoSubmit(id, 'admin_auto_submit');
+
+    if (!result.found) {
+      return res.status(404).json({ message: 'Test not found' });
+    }
+
+    res.json({
+      message: 'Active submissions auto-submitted and test completed',
+      autoSubmittedCount: result.autoSubmittedCount,
+      test: result.test
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getTestHistory = async (req, res) => {
+  try {
+    const tests = await Test.find().sort({ createdAt: -1 });
+    res.json(tests);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getWaitingQueues = async (req, res) => {
+  try {
+    const queueSnapshot = eventController.getWaitingQueueSnapshot();
+    const tests = await Test.find({ status: { $ne: 'completed' } }, 'title status');
+    const activeSubmissions = await Submission.aggregate([
+      { $match: { status: 'active' } },
+      { $group: { _id: '$testId', count: { $sum: 1 } } }
+    ]);
+
+    const activeMap = new Map(activeSubmissions.map((item) => [String(item._id), item.count]));
+    const queueMap = new Map(queueSnapshot.map((item) => [item.testId, item.waitingUsers]));
+
+    const response = tests.map((test) => ({
+      testId: String(test._id),
+      title: test.title,
+      status: test.status,
+      activeSubmissionCount: activeMap.get(String(test._id)) || 0,
+      waitingUsers: queueMap.get(String(test._id)) || []
+    }));
+
+    res.json(response);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getTestResults = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const submissions = await Submission.find({ testId: id, status: 'completed' })
+      .sort({ score: -1, updatedAt: 1 });
+    res.json(submissions);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getSubmissionDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const submission = await Submission.findById(id).populate('testId');
+    if (!submission) return res.status(404).json({ message: 'Submission not found' });
+
+    res.json(submission);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

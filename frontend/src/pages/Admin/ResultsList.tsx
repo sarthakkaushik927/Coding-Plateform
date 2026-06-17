@@ -1,0 +1,153 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import testService from '../../utils/apiService';
+
+interface SubmissionSummary {
+  _id: string;
+  candidateName: string;
+  candidateEmail: string;
+  score: number;
+  updatedAt: string;
+}
+
+type SortOption = 'rank' | 'latest' | 'name';
+
+const ResultsList: React.FC = () => {
+  const { testId } = useParams<{ testId: string }>();
+  const navigate = useNavigate();
+  const [results, setResults] = useState<SubmissionSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<SortOption>('rank');
+
+  useEffect(() => {
+    const fetchResults = async () => {
+      if (!testId) return;
+      try {
+        const res = await testService.getTestResults(testId);
+        setResults(res.data);
+      } catch (err) {
+        console.error('Failed to fetch results', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchResults();
+  }, [testId]);
+
+  const sortedResults = [...results].sort((a, b) => {
+    if (sortBy === 'latest') {
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    }
+
+    if (sortBy === 'name') {
+      return a.candidateName.localeCompare(b.candidateName);
+    }
+
+    if (b.score !== a.score) {
+      return b.score - a.score;
+    }
+
+    return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+  });
+
+  return (
+    <div className="min-h-screen bg-cream-50 font-sans text-cream-900 pb-20">
+      <nav className="bg-white border-b border-cream-200 mb-12">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Link to="/admin" className="w-8 h-8 border border-cream-950 flex items-center justify-center text-cream-950 font-serif font-bold text-lg">
+              N
+            </Link>
+            <span className="text-lg font-serif font-bold text-cream-950 tracking-wide">NextGen Admin</span>
+          </div>
+          <button 
+            onClick={() => navigate('/admin')}
+            className="text-xs uppercase tracking-widest font-bold text-cream-500 hover:text-cream-950 transition-colors"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </nav>
+
+      <header className="max-w-6xl mx-auto px-6 mb-12 flex flex-col gap-6 md:flex-row md:justify-between md:items-end">
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400 mb-2">Performance Analytics</div>
+          <h1 className="text-4xl font-serif text-cream-950">Assessment Results</h1>
+          <p className="text-cream-600 mt-2 font-light italic">Detailed performance overview for all registered participants.</p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <span className="text-[10px] font-bold text-cream-500 uppercase tracking-widest">Sort Metrics</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="bg-white border border-cream-200 rounded-sm px-4 py-2 text-xs font-bold uppercase tracking-wide text-cream-900 focus:outline-none focus:border-cream-900 transition-colors"
+          >
+            <option value="rank">By Rank</option>
+            <option value="latest">By Date</option>
+            <option value="name">By Name</option>
+          </select>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-6">
+        {loading ? (
+          <div className="flex flex-col items-center py-32">
+            <div className="w-10 h-10 border-2 border-cream-200 border-t-cream-900 rounded-full animate-spin"></div>
+            <p className="mt-6 text-[10px] text-cream-400 uppercase tracking-widest font-bold">Retrieving Data...</p>
+          </div>
+        ) : sortedResults.length === 0 ? (
+          <div className="bg-white border border-dashed border-cream-300 rounded-sm p-24 text-center shadow-sm">
+            <p className="text-cream-400 font-light italic">No completed submissions recorded for this assessment.</p>
+          </div>
+        ) : (
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+            {sortedResults.map((sub, index) => (
+              <div
+                key={sub._id}
+                onClick={() => navigate(`/admin/submission/${sub._id}`)}
+                className="group cursor-pointer bg-white border border-cream-200 p-8 rounded-sm shadow-sm hover:shadow-premium transition-all"
+              >
+                <div className="flex items-start justify-between mb-8">
+                  <div className="min-w-0">
+                    <div className="text-[9px] uppercase tracking-widest text-cream-400 font-bold mb-1">Candidate</div>
+                    <h2 className="text-xl font-serif text-cream-950 group-hover:text-cream-700 transition-colors truncate">{sub.candidateName}</h2>
+                    <p className="text-xs text-cream-500 font-light truncate">{sub.candidateEmail}</p>
+                  </div>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold border transition-colors ${
+                    index === 0 && sortBy === 'rank' ? 'bg-cream-900 border-cream-900 text-cream-50' : 'bg-cream-50 border-cream-100 text-cream-400'
+                  }`}>
+                    {index + 1}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 mb-8 pt-8 border-t border-cream-50">
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-cream-400 font-bold mb-1">Score</div>
+                    <div className="text-3xl font-serif text-cream-950">{sub.score}</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-cream-400 font-bold mb-1">Status</div>
+                    <div className="text-xs font-bold text-cream-900 mt-2 uppercase tracking-tighter">Completed</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-6 border-t border-cream-50">
+                  <span className="text-[10px] text-cream-400 uppercase tracking-widest font-bold">
+                    {new Date(sub.updatedAt).toLocaleDateString()}
+                  </span>
+                  <span className="text-[10px] font-bold text-cream-950 uppercase tracking-widest group-hover:underline underline-offset-4">
+                    Review File &rarr;
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default ResultsList;
