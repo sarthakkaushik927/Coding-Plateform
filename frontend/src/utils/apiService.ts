@@ -39,6 +39,9 @@ export const testService = {
   saveAnswer: (submissionId: string, questionId: string, answerIndex: number) =>
     api.post(`/submission/${submissionId}/save-answer`, { questionId, answerIndex }),
 
+  clearAnswer: (submissionId: string, questionId: string) =>
+    api.post(`/submission/${submissionId}/clear-answer`, { questionId }),
+
   completeSubmission: (submissionId: string) =>
     api.post(`/submission/${submissionId}/complete`),
 

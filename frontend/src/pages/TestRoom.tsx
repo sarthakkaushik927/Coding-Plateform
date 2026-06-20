@@ -39,6 +39,7 @@ const TestRoom: React.FC = () => {
   const [testData, setTestData] = useState<Test | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showMobilePanel, setShowMobilePanel] = useState(false);
 
   useEffect(() => {
     const initTest = async () => {
@@ -93,6 +94,8 @@ const TestRoom: React.FC = () => {
     };
   }, [dispatch, testId]);
 
+  // --- Error / Loading / Completed states ---
+
   if (status === 'error') return (
     <div className="min-h-screen bg-cream-50 flex items-center justify-center p-6 text-center">
       <div className="max-w-md">
@@ -124,6 +127,8 @@ const TestRoom: React.FC = () => {
     );
   }
 
+  // --- Derived state ---
+
   const currentQuestion = testData.questions[currentQuestionIndex];
   const selectedAnswer = answers[currentQuestion._id];
   const isCurrentMarked = Boolean(markedQuestionIds[currentQuestion._id]);
@@ -144,20 +149,29 @@ const TestRoom: React.FC = () => {
   const viewedCount = testData.questions.filter((q) => viewedQuestionIds[q._id] && answers[q._id] === undefined).length;
   const notViewedCount = testData.questions.filter((q) => !viewedQuestionIds[q._id]).length;
 
+  // --- Handlers ---
+
   const handleSelectOption = (index: number) => {
     dispatch(setAnswer({ questionId: currentQuestion._id, answerIndex: index }));
   };
 
-  const handleClearResponse = () => {
-    dispatch(clearAnswer(currentQuestion._id));
+  const handleClearResponse = async () => {
+    if (!submissionId) return;
+
+    setIsSaving(true);
+    try {
+      await testService.clearAnswer(submissionId, currentQuestion._id);
+      dispatch(clearAnswer(currentQuestion._id));
+    } catch (error) {
+      console.error('Failed to clear answer:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const saveCurrentAnswer = async () => {
-    if (!submissionId) return;
-
-    if (selectedAnswer !== undefined) {
-      await testService.saveAnswer(submissionId, currentQuestion._id, selectedAnswer);
-    }
+    if (!submissionId || selectedAnswer === undefined) return;
+    await testService.saveAnswer(submissionId, currentQuestion._id, selectedAnswer);
   };
 
   const goToQuestion = async (nextIndex: number) => {
@@ -167,6 +181,7 @@ const TestRoom: React.FC = () => {
     try {
       await saveCurrentAnswer();
       dispatch(setCurrentQuestion({ index: nextIndex, questionId: testData.questions[nextIndex]._id }));
+      setShowMobilePanel(false);
     } catch (error) {
       console.error('Failed to navigate question:', error);
     } finally {
@@ -178,6 +193,17 @@ const TestRoom: React.FC = () => {
     goToQuestion(currentQuestionIndex + 1);
   };
 
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await saveCurrentAnswer();
+    } catch (error) {
+      console.error('Failed to save answer:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handlePrevious = () => {
     goToQuestion(currentQuestionIndex - 1);
   };
@@ -187,7 +213,6 @@ const TestRoom: React.FC = () => {
   };
 
   const handleOpenSubmitModal = async () => {
-    // Save the current answer before showing the modal
     setIsSaving(true);
     try {
       await saveCurrentAnswer();
@@ -214,14 +239,17 @@ const TestRoom: React.FC = () => {
     }
   };
 
+  // --- Render ---
+
   return (
-    <div className="min-h-screen bg-cream-50 font-sans text-cream-900">
+    <div className="min-h-screen bg-cream-50 font-sans text-cream-900 pb-20 lg:pb-0">
       <TestRoomHeader candidateName={user?.name} />
 
-      <main className="max-w-7xl mx-auto py-10 px-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-10 items-start">
-          {/* Left Sidebar — Question Grid + Stats */}
-          <div className="space-y-4 lg:sticky lg:top-8">
+      <main className="max-w-7xl mx-auto py-6 sm:py-10 px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 lg:gap-10 items-start">
+
+          {/* Desktop Sidebar — hidden on mobile */}
+          <div className="hidden lg:block space-y-4 lg:sticky lg:top-8">
             <CandidateQuestionPanel
               questions={testData.questions}
               currentQuestionIndex={currentQuestionIndex}
@@ -236,7 +264,6 @@ const TestRoom: React.FC = () => {
               onQuestionSelect={goToQuestion}
             />
 
-            {/* Submit Button — Always Visible in Sidebar */}
             <button
               onClick={handleOpenSubmitModal}
               disabled={isSaving}
@@ -251,12 +278,12 @@ const TestRoom: React.FC = () => {
 
           {/* Right Content — Question + Actions */}
           <div>
-            <header className="flex justify-between items-end mb-8">
+            <header className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-6 sm:mb-8 gap-2">
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400 mb-2">Live Assessment</div>
-                <h1 className="text-3xl text-cream-950">{testData.title}</h1>
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400 mb-1 sm:mb-2">Live Assessment</div>
+                <h1 className="text-xl sm:text-3xl text-cream-950">{testData.title}</h1>
               </div>
-              <div className="text-sm font-serif italic text-cream-500">
+              <div className="text-xs sm:text-sm font-serif italic text-cream-500">
                 Question: <span className="font-bold text-cream-900">{currentQuestionIndex + 1}</span> of {testData.questions.length}
               </div>
             </header>
@@ -282,6 +309,7 @@ const TestRoom: React.FC = () => {
                 onToggleMark={handleToggleMark}
                 onClearResponse={handleClearResponse}
                 onSaveAndNext={handleSaveAndNext}
+                onSave={handleSave}
                 onPrevious={handlePrevious}
                 isFirst={currentQuestionIndex === 0}
                 isLast={currentQuestionIndex === testData.questions.length - 1}
@@ -290,6 +318,79 @@ const TestRoom: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Mobile Bottom Bar — fixed at bottom, visible on small screens */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-cream-200 px-4 py-3 flex items-center justify-between gap-3 lg:hidden z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button
+          onClick={() => setShowMobilePanel(!showMobilePanel)}
+          className="flex items-center gap-2 px-3 py-2.5 border border-cream-200 rounded-sm text-[10px] font-black uppercase tracking-widest text-cream-700 bg-cream-50 hover:bg-cream-100 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+          Q {currentQuestionIndex + 1}/{testData.questions.length}
+        </button>
+
+        <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-wider text-cream-500">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            {answeredCount}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            {markedCount}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-slate-300" />
+            {notViewedCount}
+          </span>
+        </div>
+
+        <button
+          onClick={handleOpenSubmitModal}
+          disabled={isSaving}
+          className="px-4 py-2.5 bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-sm border border-emerald-900 transition-all hover:bg-emerald-900 disabled:opacity-50 flex items-center gap-1.5"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Submit
+        </button>
+      </div>
+
+      {/* Mobile Question Panel Drawer */}
+      {showMobilePanel && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-cream-950/50 backdrop-blur-sm" onClick={() => setShowMobilePanel(false)} />
+          <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-cream-200 rounded-t-2xl max-h-[75vh] overflow-y-auto animate-slide-up p-4 pb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400">Question Panel</div>
+              <button
+                onClick={() => setShowMobilePanel(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-cream-100 text-cream-600 hover:bg-cream-200 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <CandidateQuestionPanel
+              questions={testData.questions}
+              currentQuestionIndex={currentQuestionIndex}
+              isSaving={isSaving}
+              counts={{
+                answered: answeredCount,
+                marked: markedCount,
+                viewed: viewedCount,
+                notViewed: notViewedCount
+              }}
+              getQuestionState={getCandidateQuestionState}
+              onQuestionSelect={goToQuestion}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Submit Confirmation Modal */}
       <SubmitConfirmModal
@@ -306,7 +407,7 @@ const TestRoom: React.FC = () => {
         onCancel={() => setShowSubmitModal(false)}
       />
 
-      <footer className="py-12 text-center">
+      <footer className="hidden lg:block py-12 text-center">
         <p className="text-[10px] text-cream-300 uppercase tracking-[0.2em] font-bold">
           Encrypted Environment &bull; NextGen Protocol 4.0
         </p>

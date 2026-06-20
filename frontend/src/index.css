@@ -138,3 +138,19 @@ h1, h2, h3, h4 {
 .animate-in {
   animation: modal-in 0.2s ease-out;
 }
+
+/* Mobile Drawer Slide Up Animation */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}

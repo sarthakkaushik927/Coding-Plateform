@@ -73,6 +73,24 @@ exports.saveAnswer = async (req, res) => {
   }
 };
 
+exports.clearAnswer = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { questionId } = req.body;
+
+    const submission = await Submission.findById(submissionId);
+    if (!submission) return res.status(404).json({ message: 'Submission not found' });
+    if (submission.status === 'completed') return res.status(403).json({ message: 'Test already completed' });
+
+    submission.answers.delete(questionId);
+    await submission.save();
+
+    res.json({ message: 'Answer cleared successfully', submission });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.completeSubmission = async (req, res) => {
   try {
     const { submissionId } = req.params;

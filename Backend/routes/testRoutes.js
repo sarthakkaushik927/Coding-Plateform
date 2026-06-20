@@ -9,6 +9,7 @@ router.get('/test/:id', testController.getTest);
 // Submission routes
 router.post('/submission/start', testController.startSubmission);
 router.post('/submission/:submissionId/save-answer', testController.saveAnswer);
+router.post('/submission/:submissionId/clear-answer', testController.clearAnswer);
 router.post('/submission/:submissionId/complete', testController.completeSubmission);
 
 module.exports = router;
