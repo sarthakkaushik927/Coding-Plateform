@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
+import { createEventSourceUrl } from '../utils/apiService';
 
 const WaitingRoom: React.FC = () => {
   const { id: testId } = useParams<{ id: string }>();
@@ -14,7 +15,7 @@ const WaitingRoom: React.FC = () => {
 
     const name = encodeURIComponent(user?.name || 'Candidate');
     const email = encodeURIComponent(user?.email || '');
-    const eventSource = new EventSource(`http://localhost:5000/api/events/test/${testId}?name=${name}&email=${email}`);
+    const eventSource = new EventSource(createEventSourceUrl(`/events/test/${testId}?name=${name}&email=${email}`));
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);

@@ -1,73 +1,69 @@
-# React + TypeScript + Vite
+# Coding Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Full-stack coding assessment platform with a Vite/React frontend and Express/MongoDB backend.
 
-Currently, two official plugins are available:
+## Deployment Configuration
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Backend environment variables live in `Backend/.env` and are documented in `Backend/.env.example`.
 
-## React Compiler
+Required for production:
+- `NODE_ENV=production`
+- `MONGODB_URI`
+- `JWT_SECRET`
+- `EMAIL_USER`
+- `EMAIL_PASS`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Common backend variables:
+- `PORT`: provided automatically by most hosts, defaults to `5000` locally.
+- `CORS_ORIGIN`: comma-separated frontend origins, for example `https://app.example.com`.
+- `EMAIL_SERVICE`: defaults to `gmail`.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`: use these instead of `EMAIL_SERVICE` for custom SMTP.
 
-## Expanding the ESLint configuration
+Frontend environment variables live in `frontend/.env` and are documented in `frontend/.env.example`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Required only when frontend and backend are on different origins:
+- `VITE_API_BASE_URL=https://your-backend-domain.com/api`
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+If `VITE_API_BASE_URL` is not set in production, the frontend uses same-origin `/api`.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Local Development
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd Backend
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
 ```
+
+## Production Build
+
+Backend:
+
+```bash
+cd Backend
+npm ci --omit=dev
+npm start
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+The backend exposes `GET /health` for platform health checks.
+
+## Authentication
+
+Users create accounts with name, email, and password, then verify the account with an email OTP.
+Login requires email and password.
+Forgot password uses a separate email OTP and lets the user set a new password.

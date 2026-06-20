@@ -1,4 +1,26 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+out/
+
+# Environment variables & secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*.local
+*.local
+
 # Logs
+logs/
 logs
 *.log
 npm-debug.log*
@@ -6,23 +28,36 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-GEMINI.md
 
-node_modules
-dist
-dist-ssr
-*.local
+# Test coverage & Cypress
+coverage/
+.nyc_output/
+cypress/screenshots/
+cypress/videos/
 
-*.txt
-*.env
-*.env.*.local
-# Editor directories and files
+# Editor & IDE files
 .vscode/*
 !.vscode/extensions.json
+.idea/
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.sublime-project
+*.sublime-workspace
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Documentation / AI files
+GEMINI.md
+
+# Text files (remove this line if you want to track .txt files)
+*.txt

@@ -1,7 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from './store';
+import { logout } from './store/authSlice';
 
 import Home from './pages/Home';
 import TestRoom from './pages/TestRoom';
@@ -14,23 +16,50 @@ import DetailedResult from './pages/Admin/DetailedResult';
 import Signup from './pages/Auth/Signup';
 import VerifyOTP from './pages/Auth/VerifyOTP';
 import Login from './pages/Auth/Login';
+import ForgotPassword from './pages/Auth/ForgotPassword';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { token, user } = useSelector((state: RootState) => state.auth);
+  if (!token || !user) return <Navigate to="/login" replace />;
+  if (!localStorage.getItem('token')) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+};
+
+const AuthStorageSync = ({ children }: { children: React.ReactNode }) => {
+  const dispatch = useDispatch();
   const { token } = useSelector((state: RootState) => state.auth);
-  if (!token) return <Navigate to="/login" replace />;
+
+  useEffect(() => {
+    if (token && !localStorage.getItem('token')) {
+      dispatch(logout());
+    }
+  }, [dispatch, token]);
+
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'token' && !event.newValue) {
+        dispatch(logout());
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [dispatch]);
+
   return <>{children}</>;
 };
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const { token, user } = useSelector((state: RootState) => state.auth);
   if (!token) return <Navigate to="/login" replace />;
+  if (!localStorage.getItem('token')) return <Navigate to="/login" replace />;
   if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { token, user } = useSelector((state: RootState) => state.auth);
-  if (token) {
+  if (token && localStorage.getItem('token')) {
     return <Navigate to={user?.role === 'admin' ? '/admin' : '/dashboard'} replace />;
   }
   return <>{children}</>;
@@ -39,24 +68,27 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 const App: React.FC = () => {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
+      <AuthStorageSync>
+        <Routes>
+          <Route path="/" element={<Home />} />
 
-        <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
-        <Route path="/verify" element={<PublicRoute><VerifyOTP /></PublicRoute>} />
-        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+          <Route path="/verify" element={<PublicRoute><VerifyOTP /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
 
-        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/test/wait/:id" element={<ProtectedRoute><WaitingRoom /></ProtectedRoute>} />
-        <Route path="/test/:id" element={<ProtectedRoute><TestRoom /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/test/wait/:id" element={<ProtectedRoute><WaitingRoom /></ProtectedRoute>} />
+          <Route path="/test/:id" element={<ProtectedRoute><TestRoom /></ProtectedRoute>} />
 
-        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-        <Route path="/admin/create-test" element={<AdminRoute><CreateTest /></AdminRoute>} />
-        <Route path="/admin/results/:testId" element={<AdminRoute><ResultsList /></AdminRoute>} />
-        <Route path="/admin/submission/:subId" element={<AdminRoute><DetailedResult /></AdminRoute>} />
+          <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+          <Route path="/admin/create-test" element={<AdminRoute><CreateTest /></AdminRoute>} />
+          <Route path="/admin/results/:testId" element={<AdminRoute><ResultsList /></AdminRoute>} />
+          <Route path="/admin/submission/:subId" element={<AdminRoute><DetailedResult /></AdminRoute>} />
 
-        <Route path="*" element={<div className="p-10 text-center">Page Not Found</div>} />
-      </Routes>
+          <Route path="*" element={<div className="p-10 text-center">Page Not Found</div>} />
+        </Routes>
+      </AuthStorageSync>
     </Router>
   );
 };

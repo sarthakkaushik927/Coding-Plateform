@@ -6,15 +6,18 @@ import {
   startTest,
   setAnswer,
   setCurrentQuestion,
+  toggleMarkQuestion,
   completeTest,
   setError
 } from '../store/testSlice';
-import testService from '../utils/apiService';
+import testService, { createEventSourceUrl } from '../utils/apiService';
 import type { Test } from '../types';
 
 import QuestionCard from '../components/QuestionCard';
-import TimerDisplay from '../components/TimerDisplay';
 import NavigationControls from '../components/NavigationControls';
+import CandidateQuestionPanel, { type CandidateQuestionState } from '../components/test/CandidateQuestionPanel';
+import MarkReviewButton from '../components/test/MarkReviewButton';
+import TestRoomHeader from '../components/test/TestRoomHeader';
 
 const TestRoom: React.FC = () => {
   const { id: testId } = useParams<{ id: string }>();
@@ -25,6 +28,8 @@ const TestRoom: React.FC = () => {
     submissionId,
     currentQuestionIndex,
     answers,
+    viewedQuestionIds,
+    markedQuestionIds,
     status
   } = useSelector((state: RootState) => state.test);
 
@@ -56,10 +61,13 @@ const TestRoom: React.FC = () => {
           submissionId: submissionRes.data._id,
           testId,
           duration: test.durationInMinutes,
-          startedAt: test.startedAt
+          startedAt: test.startedAt ?? undefined
         }));
-      } catch (err: any) {
-        console.error('CRITICAL ERROR in initTest:', err);
+        if (test.questions[0]?._id) {
+          dispatch(setCurrentQuestion({ index: 0, questionId: test.questions[0]._id }));
+        }
+      } catch (error: unknown) {
+        console.error('CRITICAL ERROR in initTest:', error);
         dispatch(setError());
       }
     };
@@ -70,7 +78,7 @@ const TestRoom: React.FC = () => {
   useEffect(() => {
     if (!testId) return;
 
-    const eventSource = new EventSource(`http://localhost:5000/api/events/test/${testId}`);
+    const eventSource = new EventSource(createEventSourceUrl(`/events/test/${testId}`));
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'AUTO_SUBMIT') {
@@ -116,30 +124,60 @@ const TestRoom: React.FC = () => {
 
   const currentQuestion = testData.questions[currentQuestionIndex];
   const selectedAnswer = answers[currentQuestion._id];
+  const isCurrentMarked = Boolean(markedQuestionIds[currentQuestion._id]);
+
+  const getCandidateQuestionState = (questionId: string): CandidateQuestionState => {
+    const isAnswered = answers[questionId] !== undefined;
+    const isMarked = Boolean(markedQuestionIds[questionId]);
+    const isViewed = Boolean(viewedQuestionIds[questionId]);
+
+    if (isMarked) return 'marked';
+    if (isAnswered) return 'answered';
+    if (isViewed) return 'viewed';
+    return 'notViewed';
+  };
+
+  const answeredCount = testData.questions.filter((question) => answers[question._id] !== undefined).length;
+  const markedCount = testData.questions.filter((question) => markedQuestionIds[question._id]).length;
+  const viewedCount = testData.questions.filter((question) => viewedQuestionIds[question._id] && answers[question._id] === undefined).length;
+  const notViewedCount = testData.questions.filter((question) => !viewedQuestionIds[question._id]).length;
 
   const handleSelectOption = (index: number) => {
     dispatch(setAnswer({ questionId: currentQuestion._id, answerIndex: index }));
   };
 
-  const handleNext = async () => {
+  const saveCurrentAnswer = async () => {
     if (!submissionId) return;
+
+    if (selectedAnswer !== undefined) {
+      await testService.saveAnswer(submissionId, currentQuestion._id, selectedAnswer);
+    }
+  };
+
+  const goToQuestion = async (nextIndex: number) => {
+    if (!testData.questions[nextIndex]) return;
 
     setIsSaving(true);
     try {
-      if (selectedAnswer !== undefined) {
-        await testService.saveAnswer(submissionId, currentQuestion._id, selectedAnswer);
-      }
-
-      dispatch(setCurrentQuestion(currentQuestionIndex + 1));
+      await saveCurrentAnswer();
+      dispatch(setCurrentQuestion({ index: nextIndex, questionId: testData.questions[nextIndex]._id }));
     } catch (error) {
-      console.error('Failed to save answer:', error);
+      console.error('Failed to navigate question:', error);
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleNext = () => {
+    goToQuestion(currentQuestionIndex + 1);
+  };
+
   const handlePrevious = () => {
-    dispatch(setCurrentQuestion(currentQuestionIndex - 1));
+    goToQuestion(currentQuestionIndex - 1);
+  };
+
+  const handleToggleMark = () => {
+    dispatch(toggleMarkQuestion(currentQuestion._id));
   };
 
   const handleSubmit = async () => {
@@ -147,9 +185,7 @@ const TestRoom: React.FC = () => {
 
     setIsSaving(true);
     try {
-      if (selectedAnswer !== undefined) {
-        await testService.saveAnswer(submissionId, currentQuestion._id, selectedAnswer);
-      }
+      await saveCurrentAnswer();
 
       await testService.completeSubmission(submissionId);
       dispatch(completeTest());
@@ -162,59 +198,63 @@ const TestRoom: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-cream-50 font-sans text-cream-900">
-      <nav className="bg-white border-b border-cream-200">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 border border-cream-950 flex items-center justify-center text-cream-950 font-serif font-bold text-lg">
-              N
-            </div>
-            <span className="text-lg font-serif font-bold text-cream-950 tracking-wide">NextGen</span>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-[9px] uppercase font-bold text-cream-400 tracking-tighter">Candidate</span>
-              <span className="text-sm font-bold text-cream-900">{user?.name}</span>
-            </div>
-            <div className="w-px h-8 bg-cream-100 hidden sm:block"></div>
-            <TimerDisplay />
-          </div>
-        </div>
-      </nav>
+      <TestRoomHeader candidateName={user?.name} />
 
-      <main className="max-w-4xl mx-auto py-16 px-6">
-        <header className="flex justify-between items-end mb-12">
+      <main className="max-w-7xl mx-auto py-16 px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-10 items-start">
+          <CandidateQuestionPanel
+            questions={testData.questions}
+            currentQuestionIndex={currentQuestionIndex}
+            isSaving={isSaving}
+            counts={{
+              answered: answeredCount,
+              marked: markedCount,
+              viewed: viewedCount,
+              notViewed: notViewedCount
+            }}
+            getQuestionState={getCandidateQuestionState}
+            onQuestionSelect={goToQuestion}
+          />
+
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400 mb-2">Live Assessment</div>
-            <h1 className="text-3xl text-cream-950">{testData.title}</h1>
-          </div>
-          <div className="text-sm font-serif italic text-cream-500">
-            Progress: <span className="font-bold text-cream-900">{currentQuestionIndex + 1}</span> of {testData.questions.length}
-          </div>
-        </header>
+            <header className="flex justify-between items-end mb-12">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400 mb-2">Live Assessment</div>
+                <h1 className="text-3xl text-cream-950">{testData.title}</h1>
+              </div>
+              <div className="text-sm font-serif italic text-cream-500">
+                Progress: <span className="font-bold text-cream-900">{currentQuestionIndex + 1}</span> of {testData.questions.length}
+              </div>
+            </header>
 
-        <div className="relative">
-          {isSaving && (
-            <div className="absolute top-4 right-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-cream-400">
-              <span className="w-1.5 h-1.5 bg-cream-400 rounded-full animate-pulse"></span>
-              Syncing
+            <div className="relative">
+              {isSaving && (
+                <div className="absolute top-4 right-4 z-10 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-cream-400">
+                  <span className="w-1.5 h-1.5 bg-cream-400 rounded-full animate-pulse"></span>
+                  Syncing
+                </div>
+              )}
+
+              <div className="flex justify-end mb-4">
+                <MarkReviewButton isMarked={isCurrentMarked} onClick={handleToggleMark} />
+              </div>
+              
+              <QuestionCard
+                question={currentQuestion}
+                selectedOption={selectedAnswer}
+                onSelect={handleSelectOption}
+              />
+
+              <NavigationControls
+                onPrevious={handlePrevious}
+                onNext={handleNext}
+                onSubmit={handleSubmit}
+                isFirst={currentQuestionIndex === 0}
+                isLast={currentQuestionIndex === testData.questions.length - 1}
+                isLoading={isSaving}
+              />
             </div>
-          )}
-          
-          <QuestionCard
-            question={currentQuestion}
-            selectedOption={selectedAnswer}
-            onSelect={handleSelectOption}
-          />
-
-          <NavigationControls
-            onPrevious={handlePrevious}
-            onNext={handleNext}
-            onSubmit={handleSubmit}
-            isFirst={currentQuestionIndex === 0}
-            isLast={currentQuestionIndex === testData.questions.length - 1}
-            isLoading={isSaving}
-          />
+          </div>
         </div>
       </main>
 

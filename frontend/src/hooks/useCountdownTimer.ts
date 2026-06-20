@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../store';
 import { updateTime, completeTest } from '../store/testSlice';
@@ -7,10 +7,20 @@ import testService from '../utils/apiService';
 export const useCountdownTimer = () => {
   const dispatch = useDispatch();
   const { timeRemaining, status, submissionId } = useSelector((state: RootState) => state.test);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
+
+    const handleAutoSubmit = async () => {
+      if (submissionId) {
+        try {
+          await testService.completeSubmission(submissionId);
+          dispatch(completeTest());
+        } catch (error) {
+          console.error('Auto-submit failed:', error);
+        }
+      }
+    };
 
     if (status === 'active' && timeRemaining > 0) {
       interval = setInterval(() => {
@@ -23,18 +33,7 @@ export const useCountdownTimer = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [status, timeRemaining, dispatch]);
-
-  const handleAutoSubmit = async () => {
-    if (submissionId) {
-      try {
-        await testService.completeSubmission(submissionId);
-        dispatch(completeTest());
-      } catch (error) {
-        console.error('Auto-submit failed:', error);
-      }
-    }
-  };
+  }, [status, timeRemaining, dispatch, submissionId]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);

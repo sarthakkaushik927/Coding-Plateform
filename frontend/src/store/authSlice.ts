@@ -14,9 +14,26 @@ interface AuthState {
   error: string | null;
 }
 
+const getStoredToken = () => localStorage.getItem('token');
+
+const getStoredUser = () => {
+  const token = getStoredToken();
+  if (!token) {
+    localStorage.removeItem('user');
+    return null;
+  }
+
+  try {
+    return JSON.parse(localStorage.getItem('user') || 'null') as User | null;
+  } catch {
+    localStorage.removeItem('user');
+    return null;
+  }
+};
+
 const initialState: AuthState = {
-  user: JSON.parse(localStorage.getItem('user') || 'null'),
-  token: localStorage.getItem('token'),
+  user: getStoredUser(),
+  token: getStoredToken(),
   isLoading: false,
   error: null,
 };
@@ -44,6 +61,8 @@ const authSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.token = null;
+      state.isLoading = false;
+      state.error = null;
       localStorage.removeItem('user');
       localStorage.removeItem('token');
     }

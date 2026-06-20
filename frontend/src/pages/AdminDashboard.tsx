@@ -68,7 +68,7 @@ const AdminDashboard: React.FC = () => {
       fetchTests();
       fetchQueues();
       setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
+    } catch {
       setMessage('Failed to open waiting room.');
     }
   };
@@ -80,7 +80,7 @@ const AdminDashboard: React.FC = () => {
       fetchTests();
       fetchQueues();
       setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
+    } catch {
       setMessage('Failed to start test.');
     }
   };
@@ -93,7 +93,7 @@ const AdminDashboard: React.FC = () => {
       fetchTests();
       fetchQueues();
       setTimeout(() => setMessage(''), 3000);
-    } catch (err) {
+    } catch {
       setMessage('Failed to complete test.');
     }
   };

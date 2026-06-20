@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  password: { type: String }, 
+  password: { type: String, select: false },
   isVerified: { type: Boolean, default: false },
   role: { type: String, enum: ['candidate', 'admin'], default: 'candidate' }
 }, { timestamps: true });
