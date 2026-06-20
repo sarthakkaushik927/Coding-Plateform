@@ -249,25 +249,27 @@ const TestRoom: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 lg:gap-10 items-start">
 
           {/* Desktop Sidebar — hidden on mobile */}
-          <div className="hidden lg:block space-y-4 lg:sticky lg:top-8">
-            <CandidateQuestionPanel
-              questions={testData.questions}
-              currentQuestionIndex={currentQuestionIndex}
-              isSaving={isSaving}
-              counts={{
-                answered: answeredCount,
-                marked: markedCount,
-                viewed: viewedCount,
-                notViewed: notViewedCount
-              }}
-              getQuestionState={getCandidateQuestionState}
-              onQuestionSelect={goToQuestion}
-            />
+          <div className="hidden lg:flex flex-col gap-4 sticky top-8" style={{ maxHeight: 'calc(100vh - 4rem)' }}>
+            <div className="flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar">
+              <CandidateQuestionPanel
+                questions={testData.questions}
+                currentQuestionIndex={currentQuestionIndex}
+                isSaving={isSaving}
+                counts={{
+                  answered: answeredCount,
+                  marked: markedCount,
+                  viewed: viewedCount,
+                  notViewed: notViewedCount
+                }}
+                getQuestionState={getCandidateQuestionState}
+                onQuestionSelect={goToQuestion}
+              />
+            </div>
 
             <button
               onClick={handleOpenSubmitModal}
               disabled={isSaving}
-              className="w-full py-3.5 bg-emerald-800 text-white text-[11px] font-black uppercase tracking-widest rounded-sm border border-emerald-900 transition-all hover:bg-emerald-900 hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full shrink-0 py-3.5 bg-emerald-800 text-white text-[11px] font-black uppercase tracking-widest rounded-sm border border-emerald-900 transition-all hover:bg-emerald-900 hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
