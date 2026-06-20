@@ -50,6 +50,9 @@ const testSlice = createSlice({
       state.answers[action.payload.questionId] = action.payload.answerIndex;
       state.viewedQuestionIds[action.payload.questionId] = true;
     },
+    clearAnswer: (state, action: PayloadAction<string>) => {
+      delete state.answers[action.payload];
+    },
     setCurrentQuestion: (state, action: PayloadAction<{ index: number; questionId: string }>) => {
       state.currentQuestionIndex = action.payload.index;
       state.viewedQuestionIds[action.payload.questionId] = true;
@@ -81,6 +84,7 @@ const testSlice = createSlice({
 export const {
   startTest,
   setAnswer,
+  clearAnswer,
   setCurrentQuestion,
   toggleMarkQuestion,
   updateTime,

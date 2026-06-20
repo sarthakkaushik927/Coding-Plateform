@@ -5,6 +5,7 @@ import type { RootState } from '../store';
 import {
   startTest,
   setAnswer,
+  clearAnswer,
   setCurrentQuestion,
   toggleMarkQuestion,
   completeTest,
@@ -14,9 +15,9 @@ import testService, { createEventSourceUrl } from '../utils/apiService';
 import type { Test } from '../types';
 
 import QuestionCard from '../components/QuestionCard';
-import NavigationControls from '../components/NavigationControls';
 import CandidateQuestionPanel, { type CandidateQuestionState } from '../components/test/CandidateQuestionPanel';
-import MarkReviewButton from '../components/test/MarkReviewButton';
+import QuestionActionBar from '../components/test/QuestionActionBar';
+import SubmitConfirmModal from '../components/test/SubmitConfirmModal';
 import TestRoomHeader from '../components/test/TestRoomHeader';
 
 const TestRoom: React.FC = () => {
@@ -37,6 +38,7 @@ const TestRoom: React.FC = () => {
 
   const [testData, setTestData] = useState<Test | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
 
   useEffect(() => {
     const initTest = async () => {
@@ -137,13 +139,17 @@ const TestRoom: React.FC = () => {
     return 'notViewed';
   };
 
-  const answeredCount = testData.questions.filter((question) => answers[question._id] !== undefined).length;
-  const markedCount = testData.questions.filter((question) => markedQuestionIds[question._id]).length;
-  const viewedCount = testData.questions.filter((question) => viewedQuestionIds[question._id] && answers[question._id] === undefined).length;
-  const notViewedCount = testData.questions.filter((question) => !viewedQuestionIds[question._id]).length;
+  const answeredCount = testData.questions.filter((q) => answers[q._id] !== undefined).length;
+  const markedCount = testData.questions.filter((q) => markedQuestionIds[q._id]).length;
+  const viewedCount = testData.questions.filter((q) => viewedQuestionIds[q._id] && answers[q._id] === undefined).length;
+  const notViewedCount = testData.questions.filter((q) => !viewedQuestionIds[q._id]).length;
 
   const handleSelectOption = (index: number) => {
     dispatch(setAnswer({ questionId: currentQuestion._id, answerIndex: index }));
+  };
+
+  const handleClearResponse = () => {
+    dispatch(clearAnswer(currentQuestion._id));
   };
 
   const saveCurrentAnswer = async () => {
@@ -168,7 +174,7 @@ const TestRoom: React.FC = () => {
     }
   };
 
-  const handleNext = () => {
+  const handleSaveAndNext = () => {
     goToQuestion(currentQuestionIndex + 1);
   };
 
@@ -180,19 +186,31 @@ const TestRoom: React.FC = () => {
     dispatch(toggleMarkQuestion(currentQuestion._id));
   };
 
-  const handleSubmit = async () => {
+  const handleOpenSubmitModal = async () => {
+    // Save the current answer before showing the modal
+    setIsSaving(true);
+    try {
+      await saveCurrentAnswer();
+    } catch (error) {
+      console.error('Failed to save before submit:', error);
+    } finally {
+      setIsSaving(false);
+    }
+    setShowSubmitModal(true);
+  };
+
+  const handleConfirmSubmit = async () => {
     if (!submissionId) return;
 
     setIsSaving(true);
     try {
-      await saveCurrentAnswer();
-
       await testService.completeSubmission(submissionId);
       dispatch(completeTest());
     } catch (error) {
       console.error('Final submission failed:', error);
     } finally {
       setIsSaving(false);
+      setShowSubmitModal(false);
     }
   };
 
@@ -200,30 +218,46 @@ const TestRoom: React.FC = () => {
     <div className="min-h-screen bg-cream-50 font-sans text-cream-900">
       <TestRoomHeader candidateName={user?.name} />
 
-      <main className="max-w-7xl mx-auto py-16 px-6">
+      <main className="max-w-7xl mx-auto py-10 px-6">
         <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-10 items-start">
-          <CandidateQuestionPanel
-            questions={testData.questions}
-            currentQuestionIndex={currentQuestionIndex}
-            isSaving={isSaving}
-            counts={{
-              answered: answeredCount,
-              marked: markedCount,
-              viewed: viewedCount,
-              notViewed: notViewedCount
-            }}
-            getQuestionState={getCandidateQuestionState}
-            onQuestionSelect={goToQuestion}
-          />
+          {/* Left Sidebar — Question Grid + Stats */}
+          <div className="space-y-4 lg:sticky lg:top-8">
+            <CandidateQuestionPanel
+              questions={testData.questions}
+              currentQuestionIndex={currentQuestionIndex}
+              isSaving={isSaving}
+              counts={{
+                answered: answeredCount,
+                marked: markedCount,
+                viewed: viewedCount,
+                notViewed: notViewedCount
+              }}
+              getQuestionState={getCandidateQuestionState}
+              onQuestionSelect={goToQuestion}
+            />
 
+            {/* Submit Button — Always Visible in Sidebar */}
+            <button
+              onClick={handleOpenSubmitModal}
+              disabled={isSaving}
+              className="w-full py-3.5 bg-emerald-800 text-white text-[11px] font-black uppercase tracking-widest rounded-sm border border-emerald-900 transition-all hover:bg-emerald-900 hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Submit Assessment
+            </button>
+          </div>
+
+          {/* Right Content — Question + Actions */}
           <div>
-            <header className="flex justify-between items-end mb-12">
+            <header className="flex justify-between items-end mb-8">
               <div>
                 <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400 mb-2">Live Assessment</div>
                 <h1 className="text-3xl text-cream-950">{testData.title}</h1>
               </div>
               <div className="text-sm font-serif italic text-cream-500">
-                Progress: <span className="font-bold text-cream-900">{currentQuestionIndex + 1}</span> of {testData.questions.length}
+                Question: <span className="font-bold text-cream-900">{currentQuestionIndex + 1}</span> of {testData.questions.length}
               </div>
             </header>
 
@@ -235,28 +269,42 @@ const TestRoom: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex justify-end mb-4">
-                <MarkReviewButton isMarked={isCurrentMarked} onClick={handleToggleMark} />
-              </div>
-              
               <QuestionCard
                 question={currentQuestion}
                 selectedOption={selectedAnswer}
                 onSelect={handleSelectOption}
               />
 
-              <NavigationControls
+              <QuestionActionBar
+                isMarked={isCurrentMarked}
+                hasAnswer={selectedAnswer !== undefined}
+                isSaving={isSaving}
+                onToggleMark={handleToggleMark}
+                onClearResponse={handleClearResponse}
+                onSaveAndNext={handleSaveAndNext}
                 onPrevious={handlePrevious}
-                onNext={handleNext}
-                onSubmit={handleSubmit}
                 isFirst={currentQuestionIndex === 0}
                 isLast={currentQuestionIndex === testData.questions.length - 1}
-                isLoading={isSaving}
               />
             </div>
           </div>
         </div>
       </main>
+
+      {/* Submit Confirmation Modal */}
+      <SubmitConfirmModal
+        isOpen={showSubmitModal}
+        isSubmitting={isSaving}
+        summary={{
+          total: testData.questions.length,
+          answered: answeredCount,
+          notAnswered: testData.questions.length - answeredCount,
+          marked: markedCount,
+          notViewed: notViewedCount,
+        }}
+        onConfirm={handleConfirmSubmit}
+        onCancel={() => setShowSubmitModal(false)}
+      />
 
       <footer className="py-12 text-center">
         <p className="text-[10px] text-cream-300 uppercase tracking-[0.2em] font-bold">
