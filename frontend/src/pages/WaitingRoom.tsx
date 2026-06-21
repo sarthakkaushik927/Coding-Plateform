@@ -11,40 +11,38 @@ const WaitingRoom: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState('Awaiting administrator signal to commence...');
   const testTypeRef = useRef<string>('mcq');
 
-  // Fetch test metadata once so we know testType when START fires
-  useEffect(() => {
-    if (!testId) return;
-    testService.getTest(testId)
-      .then(res => { testTypeRef.current = res.data.testType ?? 'mcq'; })
-      .catch(() => {});
-  }, [testId]);
-
+  // Fetch test metadata and poll for status changes
   useEffect(() => {
     if (!testId) return;
 
-    const name = encodeURIComponent(user?.name || 'Candidate');
-    const email = encodeURIComponent(user?.email || '');
-    const eventSource = new EventSource(
-      createEventSourceUrl(`/events/test/${testId}?name=${name}&email=${email}`)
-    );
-
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'START') {
-        setStatusMessage('Signal received. Initializing environment...');
-        setTimeout(() => {
-          // Route to the correct test room based on testType
-          const route = testTypeRef.current === 'coding'
-            ? `/coding-test/${testId}`
-            : `/test/${testId}`;
-          navigate(route);
-        }, 1500);
+    const checkTestStatus = async () => {
+      try {
+        const res = await testService.getTest(testId);
+        testTypeRef.current = res.data.testType ?? 'mcq';
+        
+        if (res.data.status === 'active') {
+          setStatusMessage('Signal received. Initializing environment...');
+          setTimeout(() => {
+            // Route to the correct test room based on testType
+            const route = testTypeRef.current === 'coding'
+              ? `/coding-test/${testId}`
+              : `/test/${testId}`;
+            navigate(route);
+          }, 1500);
+        }
+      } catch (err) {
+        console.error('Error checking test status:', err);
       }
     };
 
-    eventSource.onerror = (err) => console.error('SSE connection error:', err);
-    return () => eventSource.close();
-  }, [testId, navigate, user?.email, user?.name]);
+    // Initial check
+    checkTestStatus();
+
+    // Poll every 3 seconds (Vercel serverless friendly)
+    const interval = setInterval(checkTestStatus, 3000);
+
+    return () => clearInterval(interval);
+  }, [testId, navigate]);
 
   return (
     <div className="min-h-screen bg-cream-50 flex flex-col items-center justify-center p-6 text-cream-900 font-sans">

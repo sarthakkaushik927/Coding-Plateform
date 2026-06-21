@@ -43,8 +43,10 @@ exports.getEvents = (req, res) => {
   const { query } = url.parse(req.url, true);
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
 
   const clientId = Date.now() + Math.floor(Math.random() * 1000);
   const newClient = {
@@ -63,7 +65,15 @@ exports.getEvents = (req, res) => {
     testId
   })}\n\n`);
 
+  const pingInterval = setInterval(() => {
+    res.write(`data: ${JSON.stringify({ type: 'PING' })}\n\n`);
+    if (typeof res.flush === 'function') {
+      res.flush();
+    }
+  }, 30000); // 30 seconds
+
   req.on('close', () => {
+    clearInterval(pingInterval);
     clients = clients.filter((client) => client.id !== clientId);
   });
 };
@@ -72,6 +82,9 @@ exports.broadcastEvent = (testId, data) => {
   clients.forEach((client) => {
     if (client.testId === testId) {
       client.res.write(`data: ${JSON.stringify(data)}\n\n`);
+      if (typeof client.res.flush === 'function') {
+        client.res.flush();
+      }
     }
   });
 };
