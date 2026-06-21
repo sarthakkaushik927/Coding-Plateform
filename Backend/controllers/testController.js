@@ -38,22 +38,44 @@ exports.startSubmission = async (req, res) => {
       return res.status(403).json({ message: 'Test is not active' });
     }
 
-    let submission = await Submission.findOne({ candidateEmail, testId });
+    // Atomic upsert — eliminates the race condition where two simultaneous
+    // requests both pass the findOne check and both create a new submission.
+    // { new: true } returns the document after insert/update.
+    // { upsert: true } creates it if it doesn't exist.
+    // setOnInsert only applies fields when the document is newly created.
+    const submission = await Submission.findOneAndUpdate(
+      { candidateEmail, testId },
+      {
+        $setOnInsert: {
+          candidateEmail,
+          candidateName,
+          testId,
+          status: 'active',
+          answers: {},
+          score: 0,
+        }
+      },
+      { upsert: true, new: true }
+    );
 
-    if (submission) {
-      if (submission.status === 'completed') {
-        return res.status(403).json({ message: 'Test already submitted' });
-      }
-      return res.json(submission);
+    if (submission.status === 'completed') {
+      return res.status(403).json({ message: 'Test already submitted' });
     }
 
-    submission = new Submission({ candidateEmail, candidateName, testId });
-    await submission.save();
-    res.status(201).json(submission);
+    res.status(200).json(submission);
   } catch (error) {
+    // Handle the rare case of a duplicate key race at the DB index level
+    if (error.code === 11000) {
+      const existing = await Submission.findOne({ candidateEmail, testId });
+      if (existing?.status === 'completed') {
+        return res.status(403).json({ message: 'Test already submitted' });
+      }
+      return res.status(200).json(existing);
+    }
     res.status(500).json({ message: error.message });
   }
 };
+
 
 exports.saveAnswer = async (req, res) => {
   try {

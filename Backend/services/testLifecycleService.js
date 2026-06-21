@@ -42,26 +42,32 @@ async function completeTestAndAutoSubmit(testId, reason = 'manual') {
     return { found: false, alreadyCompleted: false, autoSubmittedCount: 0, test: null };
   }
 
+  // Find ALL active (in-progress) submissions for this test, regardless of test status.
+  // This handles force-complete from any state: scheduled, waiting, or active.
   const activeSubmissions = await Submission.find({ testId, status: 'active' });
 
   for (const submission of activeSubmissions) {
     submission.score = calculateScore(submission, test);
     submission.status = 'completed';
+    submission.completedAt = new Date();
     await submission.save();
   }
 
   const wasAlreadyCompleted = test.status === 'completed';
-  if (!wasAlreadyCompleted) {
-    test.status = 'completed';
+
+  // Always write the final status to DB, even if status was already 'completed',
+  // so completedAt is always persisted properly.
+  test.status = 'completed';
+  if (!test.completedAt) {
     test.completedAt = new Date();
-    await test.save();
   }
+  await test.save();
 
   eventController.broadcastEvent(String(testId), {
     type: 'AUTO_SUBMIT',
     testId: String(testId),
     reason,
-    completedAt: test.completedAt || new Date().toISOString()
+    completedAt: test.completedAt.toISOString()
   });
 
   return {

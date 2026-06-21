@@ -12,9 +12,11 @@ export interface Test {
   description: string;
   durationInMinutes: number;
   status: 'scheduled' | 'waiting' | 'active' | 'completed';
+  testType: 'mcq' | 'coding' | 'mixed';
   startedAt?: string | null;
   completedAt?: string | null;
   questions: Question[];
+  codingQuestions?: any[];
 }
 
 export interface Submission {

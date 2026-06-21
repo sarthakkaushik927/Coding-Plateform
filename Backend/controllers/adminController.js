@@ -2,21 +2,102 @@ const Submission = require('../models/submission');
 const Test = require('../models/test');
 const eventController = require('./eventController');
 const { completeTestAndAutoSubmit } = require('../services/testLifecycleService');
+const { parseQuestionsFromBuffer } = require('../services/excelParserService');
+
+/**
+ * POST /api/admin/parse-questions
+ * Accepts an Excel/CSV file upload and returns parsed questions for client-side preview.
+ * Does NOT write to the database — the admin reviews and then submits the full test.
+ */
+exports.parseQuestionsFromExcel = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded.' });
+    }
+
+    const { mcqQuestions, codingQuestions, errors, testType } = parseQuestionsFromBuffer(
+      req.file.buffer,
+      req.file.originalname
+    );
+
+    const totalValid = mcqQuestions.length + codingQuestions.length;
+
+    if (totalValid === 0 && errors.length > 0) {
+      return res.status(422).json({ message: 'No valid questions found in file.', errors });
+    }
+
+    res.json({
+      message: `Parsed ${mcqQuestions.length} MCQ + ${codingQuestions.length} coding question(s).`,
+      mcqQuestions,
+      codingQuestions,
+      testType,
+      errors,
+      totalRows: totalValid + errors.length,
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 
 exports.createTest = async (req, res) => {
   try {
-    const { title, description, durationInMinutes, questions } = req.body;
+    const { title, description, durationInMinutes, questions, codingQuestions, testType } = req.body;
 
     const newTest = new Test({
       title,
       description,
       durationInMinutes,
-      questions,
+      testType: testType || 'mcq',
+      questions: questions || [],
+      codingQuestions: codingQuestions || [],
       status: 'scheduled'
     });
 
     await newTest.save();
     res.status(201).json({ message: 'Test created successfully', test: newTest });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * POST /api/admin/test/:id/coding-question
+ * Add a single coding question to an existing test.
+ */
+exports.createCodingQuestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, constraints, examples, testCases, allowedLanguages, starterCode, points, difficulty } = req.body;
+
+    const test = await Test.findById(id);
+    if (!test) return res.status(404).json({ message: 'Test not found.' });
+
+    const newQuestion = {
+      title,
+      description,
+      constraints: constraints || '',
+      examples: examples || [],
+      testCases: testCases || [],
+      allowedLanguages: allowedLanguages || ['javascript', 'python', 'cpp', 'java'],
+      starterCode: starterCode || {},
+      points: points || 10,
+      difficulty: difficulty || 'medium',
+      order: test.codingQuestions.length
+    };
+
+    test.codingQuestions.push(newQuestion);
+    if (test.codingQuestions.length > 0 && test.questions.length === 0) {
+      test.testType = 'coding';
+    } else if (test.codingQuestions.length > 0 && test.questions.length > 0) {
+      test.testType = 'mixed';
+    }
+
+    await test.save();
+    res.status(201).json({
+      message: 'Coding question added.',
+      question: test.codingQuestions[test.codingQuestions.length - 1]
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -111,12 +192,19 @@ exports.getWaitingQueues = async (req, res) => {
   try {
     const queueSnapshot = eventController.getWaitingQueueSnapshot();
     const tests = await Test.find({ status: { $ne: 'completed' } }, 'title status');
+
     const activeSubmissions = await Submission.aggregate([
       { $match: { status: 'active' } },
       { $group: { _id: '$testId', count: { $sum: 1 } } }
     ]);
 
+    const completedSubmissions = await Submission.aggregate([
+      { $match: { status: 'completed' } },
+      { $group: { _id: '$testId', count: { $sum: 1 } } }
+    ]);
+
     const activeMap = new Map(activeSubmissions.map((item) => [String(item._id), item.count]));
+    const completedMap = new Map(completedSubmissions.map((item) => [String(item._id), item.count]));
     const queueMap = new Map(queueSnapshot.map((item) => [item.testId, item.waitingUsers]));
 
     const response = tests.map((test) => ({
@@ -124,6 +212,7 @@ exports.getWaitingQueues = async (req, res) => {
       title: test.title,
       status: test.status,
       activeSubmissionCount: activeMap.get(String(test._id)) || 0,
+      completedSubmissionCount: completedMap.get(String(test._id)) || 0,
       waitingUsers: queueMap.get(String(test._id)) || []
     }));
 
@@ -136,13 +225,28 @@ exports.getWaitingQueues = async (req, res) => {
 exports.getTestResults = async (req, res) => {
   try {
     const { id } = req.params;
-    const submissions = await Submission.find({ testId: id, status: 'completed' })
-      .sort({ score: -1, updatedAt: 1 });
+
+    // Aggregate to deduplicate: if a user somehow has multiple submissions
+    // for the same test, only keep the one with the highest score.
+    const submissions = await Submission.aggregate([
+      { $match: { testId: new (require('mongoose').Types.ObjectId)(id), status: 'completed' } },
+      { $sort: { score: -1, updatedAt: 1 } },
+      {
+        $group: {
+          _id: '$candidateEmail',
+          doc: { $first: '$$ROOT' }
+        }
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { score: -1, updatedAt: 1 } }
+    ]);
+
     res.json(submissions);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 exports.getSubmissionDetails = async (req, res) => {
   try {

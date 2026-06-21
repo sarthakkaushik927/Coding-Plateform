@@ -8,6 +8,7 @@
   const authRoutes = require('./routes/authRoutes');
   const adminRoutes = require('./routes/adminRoutes');
   const eventRoutes = require('./routes/eventRoutes');
+  const codeRoutes = require('./routes/codeRoutes');
   const { completeExpiredTests } = require('./services/testLifecycleService');
 
   const app = express();
@@ -35,6 +36,7 @@
   app.use('/api/auth', authRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/events', eventRoutes);
+  app.use('/api/code', codeRoutes);
 
   mongoose.connect(config.mongoUri)
     .then(() => console.log('Connected to MongoDB'))

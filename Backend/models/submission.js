@@ -20,6 +20,19 @@ const submissionSchema = new mongoose.Schema({
     of: Number,
     default: {}
   },
+  // Format: { "question_id": { sourceCode, language, score, verdict } }
+  codingAnswers: {
+    type: Map,
+    of: new mongoose.Schema({
+      sourceCode: String,
+      language: String,
+      score: Number,
+      verdict: String,
+      passed: Number,
+      total: Number
+    }, { _id: false }),
+    default: {}
+  },
   score: {
     type: Number,
     default: 0
@@ -32,7 +45,14 @@ const submissionSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'completed'],
     default: 'active'
+  },
+  completedAt: {
+    type: Date,
+    default: null
   }
 }, { timestamps: true });
+
+// Unique compound index: one submission per user per test
+submissionSchema.index({ candidateEmail: 1, testId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Submission', submissionSchema);

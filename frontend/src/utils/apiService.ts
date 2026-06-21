@@ -55,6 +55,13 @@ export const testService = {
   getWaitingQueues: () => api.get('/admin/tests/queues'),
   getTestResults: (testId: string) => api.get(`/admin/test/${testId}/results`),
   getSubmissionDetails: (subId: string) => api.get(`/admin/submission/${subId}`),
+  createCodingQuestion: (testId: string, data: unknown) => api.post(`/admin/test/${testId}/coding-question`, data),
+
+  // Code execution
+  runCode: (sourceCode: string, language: string, stdin?: string) =>
+    api.post('/code/run', { sourceCode, language, stdin }),
+  submitCode: (testId: string, questionId: string, sourceCode: string, language: string, submissionId: string) =>
+    api.post(`/code/submit/${testId}/${questionId}`, { sourceCode, language, submissionId }),
 };
 
 export const createEventSourceUrl = (path: string) => {

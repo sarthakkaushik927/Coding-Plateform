@@ -229,8 +229,12 @@ const TestRoom: React.FC = () => {
 
     setIsSaving(true);
     try {
-      await testService.completeSubmission(submissionId);
-      dispatch(completeTest());
+      if (testData?.testType === 'mixed') {
+        navigate(`/coding-test/${testId}`);
+      } else {
+        await testService.completeSubmission(submissionId);
+        dispatch(completeTest());
+      }
     } catch (error) {
       console.error('Final submission failed:', error);
     } finally {
@@ -274,7 +278,7 @@ const TestRoom: React.FC = () => {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Submit Assessment
+              {testData?.testType === 'mixed' ? 'Proceed to Coding' : 'Submit Assessment'}
             </button>
           </div>
 
@@ -356,7 +360,7 @@ const TestRoom: React.FC = () => {
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          Submit
+          {testData?.testType === 'mixed' ? 'Next: Coding' : 'Submit'}
         </button>
       </div>
 
@@ -405,6 +409,7 @@ const TestRoom: React.FC = () => {
           marked: markedCount,
           notViewed: notViewedCount,
         }}
+        testType={testData?.testType as any}
         onConfirm={handleConfirmSubmit}
         onCancel={() => setShowSubmitModal(false)}
       />

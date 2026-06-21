@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import testService from '../utils/apiService';
+import ExcelUploader, { type ParseResult } from '../components/admin/ExcelUploader';
 
 interface Question {
   questionText: string;
   options: string[];
   correctOptionIndex: number;
+  points?: number;
 }
 
 const CreateTest: React.FC = () => {
@@ -14,11 +16,22 @@ const CreateTest: React.FC = () => {
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState(30);
   const [questions, setQuestions] = useState<Question[]>([
-    { questionText: '', options: ['', '', '', ''], correctOptionIndex: 0 }
+    { questionText: '', options: ['', '', '', ''], correctOptionIndex: 0, points: 1 }
   ]);
+  const [codingQuestions, setCodingQuestions] = useState<ParseResult['codingQuestions']>([]);
+  const [testType, setTestType] = useState<'mcq' | 'coding' | 'mixed'>('mcq');
+  const [showUploader, setShowUploader] = useState(false);
+  const [importSuccess, setImportSuccess] = useState<{ mcq: number; coding: number } | null>(null);
+
+  // ─── Question Handlers ───────────────────────────────────────────────────
 
   const handleAddQuestion = () => {
-    setQuestions([...questions, { questionText: '', options: ['', '', '', ''], correctOptionIndex: 0 }]);
+    setQuestions([...questions, { questionText: '', options: ['', '', '', ''], correctOptionIndex: 0, points: 1 }]);
+  };
+
+  const handleDeleteQuestion = (index: number) => {
+    if (questions.length === 1) return; // keep at least one
+    setQuestions(questions.filter((_, i) => i !== index));
   };
 
   const handleQuestionChange = (index: number, text: string) => {
@@ -39,6 +52,32 @@ const CreateTest: React.FC = () => {
     setQuestions(updated);
   };
 
+  const handlePointsChange = (qIndex: number, val: number) => {
+    const updated = [...questions];
+    updated[qIndex].points = val;
+    setQuestions(updated);
+  };
+
+  // ─── Excel Import ─────────────────────────────────────────────────────────
+
+  const handleImport = (result: ParseResult) => {
+    // Merge MCQ: replace blank placeholder or append
+    if (result.mcqQuestions.length > 0) {
+      const isBlank = questions.length === 1 && questions[0].questionText === '' && questions[0].options.every(o => o === '');
+      setQuestions(isBlank ? result.mcqQuestions : [...questions, ...result.mcqQuestions]);
+    }
+    // Set coding questions (replace — not append — since coding Qs come from the file)
+    if (result.codingQuestions.length > 0) {
+      setCodingQuestions(result.codingQuestions);
+    }
+    setTestType(result.testType);
+    setImportSuccess({ mcq: result.mcqQuestions.length, coding: result.codingQuestions.length });
+    setShowUploader(false);
+    setTimeout(() => setImportSuccess(null), 5000);
+  };
+
+  // ─── Submit ───────────────────────────────────────────────────────────────
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -46,7 +85,9 @@ const CreateTest: React.FC = () => {
         title,
         description,
         durationInMinutes: duration,
-        questions
+        questions,
+        codingQuestions,
+        testType,
       });
       navigate('/admin');
     } catch (err) {
@@ -57,6 +98,8 @@ const CreateTest: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-cream-50 font-sans text-cream-900 pb-32">
+
+      {/* Nav */}
       <nav className="bg-white border-b border-cream-200 mb-6 md:mb-10">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-20 flex justify-between items-center">
           <div className="flex items-center gap-2 md:gap-3">
@@ -69,7 +112,7 @@ const CreateTest: React.FC = () => {
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 md:px-6">
-        <button 
+        <button
           onClick={() => navigate('/admin')}
           className="group flex items-center gap-2 text-[10px] md:text-xs uppercase tracking-widest font-bold text-cream-500 hover:text-cream-950 transition-all whitespace-nowrap mb-8"
         >
@@ -86,38 +129,39 @@ const CreateTest: React.FC = () => {
       </header>
 
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto px-4 md:px-6 space-y-8 md:space-y-12">
-        {/* Test Basics */}
+
+        {/* ── Test Basics ── */}
         <section className="bg-white p-5 md:p-12 rounded-sm border border-cream-200 shadow-sm space-y-6 md:space-y-10">
           <div className="text-[10px] font-bold uppercase tracking-widest text-cream-400 border-b border-cream-50 pb-3 md:pb-4">Global Parameters</div>
-          
+
           <div className="space-y-5 md:space-y-6">
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-cream-500 mb-2 md:mb-3">Assessment Title</label>
-              <input 
-                required 
-                value={title} 
+              <input
+                required
+                value={title}
                 onChange={e => setTitle(e.target.value)}
                 className="input-premium text-base md:text-lg font-serif"
                 placeholder="e.g. Senior Architecture Evaluation"
               />
             </div>
-            
+
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-cream-500 mb-2 md:mb-3">Philosophical Description</label>
-              <textarea 
-                value={description} 
+              <textarea
+                value={description}
                 onChange={e => setDescription(e.target.value)}
                 className="input-premium h-24 md:h-32 leading-relaxed text-sm md:text-base"
                 placeholder="Briefly state the objectives of this assessment..."
               />
             </div>
-            
+
             <div className="w-full md:w-1/3">
               <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-cream-500 mb-2 md:mb-3">Duration (Minutes)</label>
-              <input 
-                type="number" 
-                required 
-                value={duration} 
+              <input
+                type="number"
+                required
+                value={duration}
                 onChange={e => setDuration(Number(e.target.value))}
                 className="input-premium font-mono text-base md:text-lg"
               />
@@ -125,45 +169,93 @@ const CreateTest: React.FC = () => {
           </div>
         </section>
 
-        {/* Questions */}
+        {/* ── Questions Section Header ── */}
         <div className="space-y-6 md:space-y-8">
-          <div className="flex justify-between items-end mb-4 md:mb-6">
-            <h2 className="text-xl md:text-2xl font-serif text-cream-950">Evaluative Items</h2>
-            <span className="text-[9px] md:text-[10px] font-bold uppercase text-cream-400 tracking-widest">{questions.length} Items Defined</span>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-4 md:mb-6">
+            <div>
+              <h2 className="text-xl md:text-2xl font-serif text-cream-950">Evaluative Items</h2>
+              <span className="text-[9px] md:text-[10px] font-bold uppercase text-cream-400 tracking-widest">{questions.length} Item{questions.length !== 1 ? 's' : ''} Defined</span>
+            </div>
+
+            {/* Excel Upload Button */}
+            <button
+              type="button"
+              onClick={() => setShowUploader(true)}
+              className="flex items-center gap-2 px-4 py-2.5 border border-cream-300 rounded-sm text-[10px] uppercase tracking-widest font-bold text-cream-600 hover:text-cream-950 hover:border-cream-950 bg-white hover:bg-cream-50 transition-all whitespace-nowrap"
+            >
+              <span className="text-base leading-none">📊</span>
+              Bulk Upload via Excel
+            </button>
           </div>
-          
+
+          {/* Import Success Banner */}
+          {importSuccess !== null && (
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-sm px-4 py-3 animate-in">
+              <span className="text-green-600 text-lg">✓</span>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-green-800">
+                  Imported: {importSuccess.mcq > 0 && `${importSuccess.mcq} MCQ`}{importSuccess.mcq > 0 && importSuccess.coding > 0 && ' + '}{importSuccess.coding > 0 && `${importSuccess.coding} coding`} question{importSuccess.mcq + importSuccess.coding !== 1 ? 's' : ''}
+                </p>
+                <p className="text-[11px] text-green-600">Review and edit them below before finalizing.</p>
+              </div>
+              <button type="button" onClick={() => setImportSuccess(null)} className="text-green-400 hover:text-green-700 text-sm">✕</button>
+            </div>
+          )}
+
+          {/* ── Question Cards ── */}
           {questions.map((q, qIndex) => (
-            <div key={qIndex} className="bg-white p-5 md:p-12 rounded-sm border border-cream-200 shadow-sm space-y-6 md:space-y-8 relative group">
+            <div
+              key={qIndex}
+              className="bg-white p-5 md:p-12 rounded-sm border border-cream-200 shadow-sm space-y-6 md:space-y-8 relative group"
+            >
+              {/* Large background number */}
               <div className="absolute top-3 md:top-6 right-4 md:right-8 text-cream-100 font-serif font-bold text-3xl md:text-6xl select-none group-hover:text-cream-50 transition-colors">
                 {String(qIndex + 1).padStart(2, '0')}
               </div>
-              
+
+              {/* Delete button */}
+              {questions.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteQuestion(qIndex)}
+                  title="Remove this question"
+                  className="absolute top-3 md:top-5 left-4 md:left-8 text-[10px] uppercase tracking-widest font-bold text-cream-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  ✕ Remove
+                </button>
+              )}
+
+              {/* Question Text */}
               <div className="relative pt-6 md:pt-0">
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-cream-500 mb-2 md:mb-3">Inquiry Text</label>
-                <input 
-                  required 
-                  value={q.questionText} 
+                <input
+                  required
+                  value={q.questionText}
                   onChange={e => handleQuestionChange(qIndex, e.target.value)}
                   className="input-premium text-sm md:text-lg border-none bg-cream-50/50 focus:bg-white"
                   placeholder="Enter the question here..."
                 />
               </div>
-              
+
+              {/* Options Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6 relative">
                 {q.options.map((opt, oIndex) => (
-                  <div key={oIndex} className={`flex items-center gap-3 p-3 md:p-4 rounded-sm border transition-all ${
-                    q.correctOptionIndex === oIndex ? 'bg-cream-50 border-cream-900' : 'bg-white border-cream-100'
-                  }`}>
-                    <input 
-                      type="radio" 
+                  <div
+                    key={oIndex}
+                    className={`flex items-center gap-3 p-3 md:p-4 rounded-sm border transition-all ${
+                      q.correctOptionIndex === oIndex ? 'bg-cream-50 border-cream-900' : 'bg-white border-cream-100'
+                    }`}
+                  >
+                    <input
+                      type="radio"
                       name={`correct-${qIndex}`}
                       checked={q.correctOptionIndex === oIndex}
                       onChange={() => handleCorrectIndexChange(qIndex, oIndex)}
                       className="w-4 h-4 accent-cream-950 cursor-pointer shrink-0"
                     />
-                    <input 
-                      required 
-                      value={opt} 
+                    <input
+                      required
+                      value={opt}
                       onChange={e => handleOptionChange(qIndex, oIndex, e.target.value)}
                       placeholder={`Choice ${String.fromCharCode(65 + oIndex)}`}
                       className="w-full bg-transparent border-none p-0 focus:ring-0 text-xs md:text-sm font-light text-cream-900 placeholder:text-cream-300"
@@ -171,26 +263,97 @@ const CreateTest: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Points field */}
+              <div className="flex items-center gap-3 pt-1">
+                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-cream-400 whitespace-nowrap">Points:</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={q.points ?? 1}
+                  onChange={e => handlePointsChange(qIndex, Number(e.target.value))}
+                  className="w-20 border border-cream-200 rounded-sm px-2 py-1 text-xs font-mono text-cream-900 focus:outline-none focus:border-cream-900 transition-colors"
+                />
+              </div>
             </div>
           ))}
+
+          {/* ── Coding Question Cards ── */}
+          {codingQuestions.length > 0 && (
+            <div className="pt-8 border-t border-cream-200 space-y-6 md:space-y-8">
+              <h3 className="text-xl font-serif text-cream-950 mb-4">Coding Inquiries</h3>
+              {codingQuestions.map((cq, cqIndex) => (
+                <div
+                  key={cqIndex}
+                  className="bg-blue-50/30 p-5 md:p-12 rounded-sm border border-blue-200 shadow-sm space-y-4 relative group"
+                >
+                  {/* Large background number */}
+                  <div className="absolute top-3 md:top-6 right-4 md:right-8 text-blue-100 font-serif font-bold text-3xl md:text-6xl select-none group-hover:text-blue-200 transition-colors">
+                    {String(cqIndex + 1).padStart(2, '0')}
+                  </div>
+
+                  <div className="relative pt-6 md:pt-0">
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500 mb-2 md:mb-3">Coding Question Title</label>
+                    <div className="input-premium text-sm md:text-lg border-none bg-blue-50 focus:bg-white text-cream-900 cursor-not-allowed opacity-80 py-2 px-3 rounded-sm">
+                      ⚡ {cq.title}
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500 mb-2 md:mb-3">Description</label>
+                    <div className="text-sm font-light text-cream-800 bg-blue-50 p-3 rounded-sm">
+                      {cq.description.length > 100 ? cq.description.substring(0, 100) + '...' : cq.description}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Difficulty:</span>
+                      <span className="text-xs font-semibold text-blue-800 uppercase">{cq.difficulty}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Points:</span>
+                      <span className="text-xs font-semibold text-blue-800">{cq.points}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Test Cases:</span>
+                      <span className="text-xs font-semibold text-blue-800">{cq.testCases?.length || 0}</span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-blue-500 italic pt-2 border-t border-blue-200/50">
+                    * Coding questions uploaded via Excel cannot be edited here. You can edit them in the Admin Dashboard after creating the test.
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
+        {/* ── Action Buttons ── */}
         <div className="flex flex-col sm:flex-row gap-4 md:gap-6">
-          <button 
+          <button
             type="button"
             onClick={handleAddQuestion}
             className="flex-1 py-4 border border-dashed border-cream-300 rounded-sm text-[10px] uppercase tracking-widest font-bold text-cream-500 hover:text-cream-950 hover:border-cream-950 transition-all bg-white"
           >
             + Append New Inquiry
           </button>
-          <button 
+          <button
             type="submit"
             className="flex-1 py-4 bg-cream-900 text-cream-50 rounded-sm text-[10px] uppercase tracking-[0.2em] font-bold hover:bg-cream-950 shadow-lg shadow-cream-100 transition-all"
           >
-            Finalize & Distribute
+            Finalize &amp; Distribute
           </button>
         </div>
       </form>
+
+      {/* ── Excel Uploader Modal ── */}
+      {showUploader && (
+        <ExcelUploader
+          onImport={handleImport}
+          onClose={() => setShowUploader(false)}
+        />
+      )}
     </div>
   );
 };

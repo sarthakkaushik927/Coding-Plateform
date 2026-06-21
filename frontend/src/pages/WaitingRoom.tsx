@@ -1,40 +1,49 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
-import { createEventSourceUrl } from '../utils/apiService';
+import testService, { createEventSourceUrl } from '../utils/apiService';
 
 const WaitingRoom: React.FC = () => {
   const { id: testId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useSelector((state: RootState) => state.auth);
   const [statusMessage, setStatusMessage] = useState('Awaiting administrator signal to commence...');
+  const testTypeRef = useRef<string>('mcq');
+
+  // Fetch test metadata once so we know testType when START fires
+  useEffect(() => {
+    if (!testId) return;
+    testService.getTest(testId)
+      .then(res => { testTypeRef.current = res.data.testType ?? 'mcq'; })
+      .catch(() => {});
+  }, [testId]);
 
   useEffect(() => {
     if (!testId) return;
 
     const name = encodeURIComponent(user?.name || 'Candidate');
     const email = encodeURIComponent(user?.email || '');
-    const eventSource = new EventSource(createEventSourceUrl(`/events/test/${testId}?name=${name}&email=${email}`));
+    const eventSource = new EventSource(
+      createEventSourceUrl(`/events/test/${testId}?name=${name}&email=${email}`)
+    );
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
-
       if (data.type === 'START') {
         setStatusMessage('Signal received. Initializing environment...');
         setTimeout(() => {
-          navigate(`/test/${testId}`);
+          // Route to the correct test room based on testType
+          const route = testTypeRef.current === 'coding'
+            ? `/coding-test/${testId}`
+            : `/test/${testId}`;
+          navigate(route);
         }, 1500);
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error('SSE connection error:', err);
-    };
-
-    return () => {
-      eventSource.close();
-    };
+    eventSource.onerror = (err) => console.error('SSE connection error:', err);
+    return () => eventSource.close();
   }, [testId, navigate, user?.email, user?.name]);
 
   return (
@@ -58,11 +67,11 @@ const WaitingRoom: React.FC = () => {
               <span className="w-2 h-2 bg-cream-400 rounded-full animate-pulse delay-150"></span>
               <span className="w-2 h-2 bg-cream-200 rounded-full animate-pulse delay-300"></span>
             </div>
-            
+
             <p className="text-sm font-bold tracking-widest uppercase text-cream-950">
               {statusMessage}
             </p>
-            
+
             <p className="text-xs text-cream-500 max-w-xs mx-auto leading-relaxed">
               Please maintain focus. The assessment environment will synchronize automatically across all participants.
             </p>

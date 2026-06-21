@@ -9,16 +9,27 @@ interface Question {
   correctOptionIndex: number;
 }
 
+interface CodingAnswer {
+  sourceCode: string;
+  language: string;
+  score: number;
+  verdict: string;
+  passed: number;
+  total: number;
+}
+
 interface SubmissionDetail {
   _id: string;
   candidateName: string;
   candidateEmail: string;
   score: number;
   answers: Record<string, number>;
+  codingAnswers?: Record<string, CodingAnswer>;
   testId: {
     _id: string;
     title: string;
     questions: Question[];
+    codingQuestions?: any[];
   };
 }
 
@@ -278,6 +289,61 @@ const DetailedResult: React.FC = () => {
             })}
           </section>
         </div>
+
+        {/* ── Coding Answers Section ── */}
+        {submission.testId.codingQuestions && submission.testId.codingQuestions.length > 0 && (
+          <div className="mt-12 md:mt-16">
+            <h2 className="text-2xl md:text-3xl font-serif text-cream-950 mb-6 md:mb-8 border-b border-cream-200 pb-4">Coding Submissions</h2>
+            <div className="space-y-8 md:space-y-12">
+              {submission.testId.codingQuestions.map((cq, index) => {
+                const codingAns = submission.codingAnswers?.[cq._id];
+                const isAnswered = !!codingAns;
+                const isPerfect = codingAns && codingAns.passed === codingAns.total && codingAns.total > 0;
+
+                return (
+                  <div key={cq._id} className="bg-white p-6 md:p-8 rounded-sm shadow-sm border border-cream-200 text-cream-900">
+                    <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                      <div>
+                        <h3 className="text-xl md:text-2xl font-serif flex gap-4 text-cream-950">
+                          <span className="font-sans font-bold text-base md:text-lg text-cream-300 pt-1 md:pt-0">Q{index + 1}</span>
+                          {cq.title}
+                        </h3>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="bg-cream-100 px-3 py-1 text-[10px] md:text-xs font-bold font-mono rounded text-cream-700">
+                          Score: {codingAns ? codingAns.score : 0} / {cq.points}
+                        </span>
+                        <span className={`px-3 py-1 text-[8px] md:text-[9px] font-black uppercase tracking-widest rounded-full border ${
+                          !isAnswered ? 'bg-slate-50 border-slate-200 text-slate-600' :
+                          isPerfect ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'
+                        }`}>
+                          {!isAnswered ? 'Not Attempted' : codingAns.verdict}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isAnswered ? (
+                      <div className="space-y-4">
+                        <div className="bg-cream-50 rounded-sm border border-cream-200 overflow-hidden">
+                          <div className="bg-white px-4 py-3 flex items-center justify-between text-[10px] md:text-xs font-mono border-b border-cream-200">
+                            <span className="text-cream-500 font-sans uppercase tracking-widest font-bold">Language: <span className="text-emerald-700 ml-2">{codingAns.language}</span></span>
+                          </div>
+                          <pre className="p-4 md:p-6 overflow-x-auto text-sm font-mono text-slate-800 custom-scrollbar">
+                            <code>{codingAns.sourceCode}</code>
+                          </pre>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 border border-slate-200 p-6 text-center rounded-sm text-sm text-slate-500 italic">
+                        No code was submitted for this question.
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
