@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../store';
-import testService, { createEventSourceUrl } from '../utils/apiService';
+import testService from '../utils/apiService';
 
 const WaitingRoom: React.FC = () => {
   const { id: testId } = useParams<{ id: string }>();
