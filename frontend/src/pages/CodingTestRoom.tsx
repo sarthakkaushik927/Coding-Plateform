@@ -7,8 +7,7 @@ import { startTest } from '../store/testSlice';
 import testService, { createEventSourceUrl } from '../utils/apiService';
 import ProblemStatement, { type CodingQuestion, type TestCaseResult } from '../components/coding/ProblemStatement';
 import OutputPanel from '../components/coding/OutputPanel';
-
-// ─── Language config ──────────────────────────────────────────────────────────
+import TestRoomHeader from '../components/test/TestRoomHeader';
 
 export const LANG_META: Record<string, { label: string; monacoLang: string; defaultCode: string }> = {
   javascript: { label: 'JavaScript', monacoLang: 'javascript', defaultCode: '// DO NOT EDIT THE INPUT READING CODE\nconst input = require("fs").readFileSync("/dev/stdin","utf8").trim();\n\n// --- WRITE YOUR LOGIC BELOW ---\n// You can print your output using console.log()\n\nconsole.log(input);\n' },
@@ -27,8 +26,6 @@ interface TestData {
   durationInMinutes: number; startedAt: string;
   codingQuestions: CodingQuestion[];
 }
-
-// ─── Timer hook ───────────────────────────────────────────────────────────────
 
 function useCountdown(durationMin: number, startedAt: string | null, onExpire: () => void) {
   const [remaining, setRemaining] = useState(durationMin * 60);
@@ -51,8 +48,6 @@ function useCountdown(durationMin: number, startedAt: string | null, onExpire: (
   return { display: `${mm}:${ss}`, isWarning: remaining < 300 };
 }
 
-// ─── CodingTestRoom ───────────────────────────────────────────────────────────
-
 const CodingTestRoom: React.FC = () => {
   const { id: testId } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -67,11 +62,9 @@ const CodingTestRoom: React.FC = () => {
   const [activeQIndex, setActiveQIndex] = useState(0);
   const [language, setLanguage]         = useState('javascript');
 
-  // code[`${questionId}_${lang}`] -> source code
   const [code, setCode]             = useState<Record<string, string>>({});
   const [submitted, setSubmitted]   = useState<Record<string, boolean>>({});
 
-  // output panel state
   const [activeTab, setActiveTab]         = useState<'output' | 'submit'>('output');
   const [customInput, setCustomInput]     = useState('');
   const [isRunning, setIsRunning]         = useState(false);
@@ -84,7 +77,6 @@ const CodingTestRoom: React.FC = () => {
   const currentCode = code[codeKey] ?? (activeQuestion?.starterCode?.[language] ?? LANG_META[language]?.defaultCode ?? '');
   const allowedLangs = activeQuestion?.allowedLanguages.filter(l => LANG_META[l]) ?? [];
 
-  // ── Load test ──
   useEffect(() => {
     if (!testId) return;
     const init = async () => {
@@ -94,7 +86,6 @@ const CodingTestRoom: React.FC = () => {
         if (t.status !== 'active' || !t.codingQuestions?.length) { navigate('/dashboard'); return; }
         setTestData(t);
 
-        // Initialize submission if we don't have one from Redux
         let currentSubmissionId = existingSubmissionId;
         if (!currentSubmissionId) {
           const email = user?.email || 'candidate@example.com';
@@ -110,14 +101,13 @@ const CodingTestRoom: React.FC = () => {
         }
         setSubmissionId(currentSubmissionId || null);
         setLoading(false);
-      } catch (err) {
+      } catch {
         navigate('/dashboard');
       }
     };
     init();
   }, [testId, navigate, dispatch, existingSubmissionId, user?.email, user?.name]);
 
-  // ── SSE force-complete ──
   useEffect(() => {
     if (!testId) return;
     const es = new EventSource(createEventSourceUrl(`/events/test/${testId}`));
@@ -132,8 +122,6 @@ const CodingTestRoom: React.FC = () => {
     testData?.startedAt ?? null,
     () => setFinished(true)
   );
-
-  // ── Handlers ──
 
   const handleQuestionChange = (idx: number) => {
     setActiveQIndex(idx);
@@ -194,61 +182,58 @@ const CodingTestRoom: React.FC = () => {
     }
   };
 
-  // ── Loading / Finished screens ──
-
   if (loading) return (
-    <div className="h-screen bg-[#1e1e2e] flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-10 h-10 border-2 border-[#313244] border-t-[#cba6f7] rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-[#6c7086] text-xs uppercase tracking-widest">Loading Assessment...</p>
-      </div>
+    <div className="min-h-screen bg-cream-50 flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-12 h-12 border-2 border-cream-200 border-t-cream-900 rounded-full animate-spin" />
+      <p className="mt-6 text-sm text-cream-400 uppercase tracking-widest font-bold">Establishing Secure Session...</p>
     </div>
   );
 
   if (finished) return (
-    <div className="h-screen bg-[#1e1e2e] flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <div className="text-5xl">✅</div>
-        <h2 className="text-2xl font-bold text-[#cdd6f4]">Session Complete</h2>
-        <p className="text-[#6c7086] text-sm">Your code has been recorded.</p>
-        <button onClick={() => navigate('/')} className="mt-6 px-6 py-2.5 bg-[#cba6f7] text-[#1e1e2e] rounded text-sm font-bold hover:bg-[#b4a0e0] transition-colors">
-          Return Home
-        </button>
+    <div className="min-h-screen bg-cream-50 flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-16 h-16 border-2 border-cream-950 flex items-center justify-center text-cream-950 font-serif font-bold text-3xl mb-8">
+        N
       </div>
+      <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400 mb-2">Protocol Finished</div>
+      <h2 className="text-4xl font-serif text-cream-950 mb-4">Submission Confirmed</h2>
+      <p className="text-cream-600 mb-12 max-w-md font-light italic">Your code has been securely persisted. You may now exit the assessment environment.</p>
+      <button onClick={() => navigate('/')} className="btn-primary">Return to Home</button>
     </div>
   );
 
   if (!testData || !activeQuestion) return null;
 
   return (
-    <div className="h-screen flex flex-col bg-[#1e1e2e] text-[#cdd6f4] font-sans overflow-hidden">
+    <div className="h-screen flex flex-col bg-cream-50 text-cream-900 font-sans overflow-hidden">
+      <TestRoomHeader candidateName={user?.name} />
 
-      {/* ── Top Bar ── */}
-      <header className="h-12 bg-[#181825] border-b border-[#313244] flex items-center px-4 gap-4 shrink-0 z-20">
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 border border-[#cba6f7] flex items-center justify-center text-[#cba6f7] font-bold text-xs">N</div>
-          <span className="text-xs font-bold text-[#cdd6f4] tracking-wide hidden sm:block">{testData.title}</span>
+      {/* Sub-header: test title, timer, question pills, finish */}
+      <div className="bg-white border-b border-cream-200 px-4 sm:px-6 py-3 flex items-center gap-3 shrink-0 flex-wrap">
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-cream-400">Coding Assessment</div>
+          <h1 className="text-sm sm:text-base font-serif text-cream-950 truncate">{testData.title}</h1>
         </div>
 
         <div className="flex-1" />
 
-        {/* Timer */}
-        <div className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono font-bold border ${
-          isWarning ? 'text-red-400 border-red-800 bg-red-950/30 animate-pulse' : 'text-[#a6e3a1] border-[#313244]'
+        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-mono font-bold border ${
+          isWarning ? 'text-red-800 border-red-200 bg-red-50 animate-pulse' : 'text-cream-950 border-cream-200 bg-cream-50'
         }`}>
-          ⏱ {timerDisplay}
+          <span className="text-[10px] font-bold uppercase tracking-widest text-cream-400 font-sans">Time</span>
+          {timerDisplay}
         </div>
 
-        {/* Question tab pills */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {testData.codingQuestions.map((q, i) => (
             <button
               key={q._id}
               onClick={() => handleQuestionChange(i)}
-              className={`w-7 h-7 text-xs font-bold rounded border transition-all ${
-                i === activeQIndex         ? 'bg-[#cba6f7] text-[#1e1e2e] border-[#cba6f7]'
-                : submitted[q._id]        ? 'bg-[#a6e3a1]/10 text-[#a6e3a1] border-[#a6e3a1]/40'
-                                          : 'bg-transparent text-[#6c7086] border-[#313244] hover:border-[#cba6f7] hover:text-[#cba6f7]'
+              className={`w-8 h-8 text-xs font-bold rounded-sm border transition-all ${
+                i === activeQIndex
+                  ? 'bg-cream-900 text-cream-50 border-cream-900'
+                  : submitted[q._id]
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    : 'bg-white text-cream-500 border-cream-200 hover:border-cream-400 hover:text-cream-900'
               }`}
             >
               {i + 1}
@@ -256,25 +241,17 @@ const CodingTestRoom: React.FC = () => {
           ))}
         </div>
 
-        <div className="w-px h-6 bg-[#313244]" />
-        
         <button
           onClick={handleFinishTest}
           disabled={isSubmitting}
-          className="ml-auto px-3 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-200 border border-red-900 text-xs font-bold rounded transition-all hidden sm:block"
+          className="px-4 py-2 bg-emerald-800 text-white text-[10px] font-black uppercase tracking-widest rounded-sm border border-emerald-900 transition-all hover:bg-emerald-900 disabled:opacity-50"
         >
           Finish Test
         </button>
+      </div>
 
-        <div className="w-px h-6 bg-[#313244]" />
-        <span className="text-[10px] text-[#6c7086] uppercase tracking-widest hidden sm:block">{user?.name}</span>
-      </header>
-
-      {/* ── Split layout ── */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-
-        {/* LEFT — Problem statement */}
-        <div className="w-full lg:w-[420px] shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-[#313244] overflow-y-auto custom-scrollbar bg-[#181825] max-h-[35vh] lg:max-h-full">
+        <div className="w-full lg:w-[420px] shrink-0 flex flex-col border-b lg:border-b-0 lg:border-r border-cream-200 overflow-y-auto custom-scrollbar bg-white max-h-[35vh] lg:max-h-full">
           <ProblemStatement
             question={activeQuestion}
             questionIndex={activeQIndex}
@@ -282,15 +259,13 @@ const CodingTestRoom: React.FC = () => {
           />
         </div>
 
-        {/* RIGHT — Editor + Output */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-
-          {/* Editor toolbar */}
-          <div className="h-10 bg-[#181825] border-b border-[#313244] flex items-center px-3 gap-3 shrink-0">
+        <div className="flex-1 flex flex-col overflow-hidden bg-white">
+          <div className="h-11 bg-cream-50 border-b border-cream-200 flex items-center px-3 gap-3 shrink-0">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-cream-400 hidden sm:block">Language</label>
             <select
               value={language}
               onChange={e => handleLanguageChange(e.target.value)}
-              className="bg-[#313244] border border-[#45475a] text-[#cdd6f4] text-xs px-2 py-1 rounded focus:outline-none focus:border-[#cba6f7]"
+              className="bg-white border border-cream-200 text-cream-900 text-xs px-3 py-1.5 rounded-sm focus:outline-none focus:border-cream-400 font-bold uppercase tracking-wider"
             >
               {allowedLangs.map(l => (
                 <option key={l} value={l}>{LANG_META[l]?.label ?? l}</option>
@@ -300,21 +275,13 @@ const CodingTestRoom: React.FC = () => {
             <div className="flex-1" />
 
             <button
-              onClick={handleFinishTest}
-              disabled={isSubmitting}
-              className="px-3 py-1 bg-red-900/40 hover:bg-red-900/60 text-red-200 border border-red-900 text-xs font-bold rounded transition-all sm:hidden mr-auto"
-            >
-              Finish
-            </button>
-
-            <button
               onClick={handleRun}
               disabled={isRunning || isSubmitting}
-              className="flex items-center gap-1.5 px-3 py-1 bg-[#313244] hover:bg-[#45475a] border border-[#45475a] text-[#cdd6f4] text-xs font-bold rounded transition-all disabled:opacity-40"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-cream-50 border border-cream-200 text-cream-900 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all disabled:opacity-40"
             >
               {isRunning
-                ? <span className="w-3 h-3 border border-[#cdd6f4] border-t-transparent rounded-full animate-spin" />
-                : '▶'
+                ? <span className="w-3 h-3 border border-cream-300 border-t-cream-900 rounded-full animate-spin" />
+                : null
               }
               Run
             </button>
@@ -322,24 +289,23 @@ const CodingTestRoom: React.FC = () => {
             <button
               onClick={handleSubmit}
               disabled={isRunning || isSubmitting}
-              className="flex items-center gap-1.5 px-3 py-1 bg-[#a6e3a1] hover:bg-[#94d4a4] text-[#1e1e2e] text-xs font-bold rounded transition-all disabled:opacity-40"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-cream-900 hover:bg-cream-950 text-cream-50 text-[10px] font-black uppercase tracking-widest rounded-sm transition-all disabled:opacity-40"
             >
               {isSubmitting
-                ? <span className="w-3 h-3 border border-[#1e1e2e] border-t-transparent rounded-full animate-spin" />
-                : '⚡'
+                ? <span className="w-3 h-3 border border-cream-200 border-t-transparent rounded-full animate-spin" />
+                : null
               }
               Submit
             </button>
           </div>
 
-          {/* Monaco Editor */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden border-b border-cream-200">
             <Editor
               height="100%"
               language={LANG_META[language]?.monacoLang ?? language}
               value={currentCode}
               onChange={val => setCode(prev => ({ ...prev, [codeKey]: val ?? '' }))}
-              theme="vs-dark"
+              theme="vs-light"
               options={{
                 fontSize: 14,
                 minimap: { enabled: false },
@@ -356,7 +322,6 @@ const CodingTestRoom: React.FC = () => {
             />
           </div>
 
-          {/* Output Panel */}
           <OutputPanel
             activeTab={activeTab}
             onTabChange={setActiveTab}

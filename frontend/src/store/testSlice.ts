@@ -35,7 +35,38 @@ const testSlice = createSlice({
       state.viewedQuestionIds = {};
       state.markedQuestionIds = {};
       state.status = 'active';
-      
+
+      if (action.payload.startedAt) {
+        const startTime = new Date(action.payload.startedAt).getTime();
+        const durationMs = action.payload.duration * 60 * 1000;
+        const now = Date.now();
+        const remainingMs = Math.max(0, startTime + durationMs - now);
+        state.timeRemaining = Math.floor(remainingMs / 1000);
+      } else {
+        state.timeRemaining = action.payload.duration * 60;
+      }
+    },
+    restoreTestSession: (
+      state,
+      action: PayloadAction<{
+        submissionId: string;
+        testId: string;
+        duration: number;
+        startedAt?: string;
+        answers: Record<string, number>;
+        viewedQuestionIds: Record<string, boolean>;
+        markedQuestionIds: Record<string, boolean>;
+        currentQuestionIndex: number;
+      }>
+    ) => {
+      state.submissionId = action.payload.submissionId;
+      state.testId = action.payload.testId;
+      state.answers = action.payload.answers;
+      state.viewedQuestionIds = action.payload.viewedQuestionIds;
+      state.markedQuestionIds = action.payload.markedQuestionIds;
+      state.currentQuestionIndex = action.payload.currentQuestionIndex;
+      state.status = 'active';
+
       if (action.payload.startedAt) {
         const startTime = new Date(action.payload.startedAt).getTime();
         const durationMs = action.payload.duration * 60 * 1000;
@@ -83,6 +114,7 @@ const testSlice = createSlice({
 
 export const {
   startTest,
+  restoreTestSession,
   setAnswer,
   clearAnswer,
   setCurrentQuestion,

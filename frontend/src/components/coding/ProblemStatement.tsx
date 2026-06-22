@@ -11,7 +11,11 @@ export interface TestCaseResult {
   passed: boolean; status: string; time?: string; stderr?: string; isHidden?: boolean;
 }
 
-const DIFFICULTY_COLOR = { easy: 'text-green-600', medium: 'text-amber-600', hard: 'text-red-600' };
+const DIFFICULTY_STYLE = {
+  easy: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  medium: 'text-amber-800 bg-amber-50 border-amber-200',
+  hard: 'text-red-800 bg-red-50 border-red-200',
+};
 
 interface ProblemStatementProps {
   question: CodingQuestion;
@@ -19,48 +23,41 @@ interface ProblemStatementProps {
   totalQuestions: number;
 }
 
-/**
- * Left panel in the coding test room — shows problem description,
- * examples, and constraints. Reusable anywhere a question needs to be displayed.
- */
 const ProblemStatement: React.FC<ProblemStatementProps> = ({ question, questionIndex, totalQuestions }) => (
-  <div className="p-5 space-y-5">
-    {/* Title + meta */}
-    <div className="space-y-2">
-      <div className="flex items-center gap-3">
-        <span className="text-[10px] font-bold text-[#6c7086] uppercase tracking-widest">
+  <div className="p-5 sm:p-6 space-y-5">
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-[10px] font-bold text-cream-400 uppercase tracking-widest">
           Q{questionIndex + 1} / {totalQuestions}
         </span>
-        <span className={`text-[10px] font-bold uppercase tracking-widest ${DIFFICULTY_COLOR[question.difficulty]}`}>
+        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-sm border ${DIFFICULTY_STYLE[question.difficulty]}`}>
           {question.difficulty}
         </span>
-        <span className="text-[10px] text-[#6c7086] ml-auto">{question.points} pts</span>
+        <span className="text-[10px] text-cream-500 ml-auto font-bold uppercase tracking-widest">{question.points} pts</span>
       </div>
-      <h2 className="text-lg font-bold text-[#cdd6f4]">{question.title}</h2>
+      <h2 className="text-xl sm:text-2xl font-serif text-cream-950 leading-tight">{question.title}</h2>
     </div>
 
-    {/* Description */}
-    <div className="text-sm text-[#a6adc8] leading-relaxed whitespace-pre-wrap border-t border-[#313244] pt-4">
+    <div className="text-sm text-cream-700 leading-relaxed whitespace-pre-wrap border-t border-cream-200 pt-4 font-light">
       {question.description}
     </div>
 
-    {/* Examples */}
     {question.examples?.length > 0 && (
-      <div className="space-y-3 border-t border-[#313244] pt-4">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#6c7086]">Examples</p>
+      <div className="space-y-3 border-t border-cream-200 pt-4">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-cream-400">Examples</p>
         {question.examples.map((ex, i) => (
-          <div key={i} className="rounded border border-[#313244] overflow-hidden text-xs">
-            <div className="bg-[#1e1e2e] px-3 py-2 space-y-1">
+          <div key={i} className="rounded-sm border border-cream-200 overflow-hidden text-xs bg-white">
+            <div className="px-3 py-3 space-y-2">
               <div>
-                <span className="text-[#6c7086] font-bold">Input:</span>
-                <pre className="mt-1 text-[#a6e3a1] font-mono">{ex.input}</pre>
+                <span className="text-cream-500 font-bold uppercase tracking-wider text-[10px]">Input</span>
+                <pre className="mt-1 text-cream-900 font-mono bg-cream-50 border border-cream-100 p-2 rounded-sm">{ex.input}</pre>
               </div>
               <div>
-                <span className="text-[#6c7086] font-bold">Output:</span>
-                <pre className="mt-1 text-[#cba6f7] font-mono">{ex.output}</pre>
+                <span className="text-cream-500 font-bold uppercase tracking-wider text-[10px]">Output</span>
+                <pre className="mt-1 text-emerald-800 font-mono bg-emerald-50/50 border border-emerald-100 p-2 rounded-sm">{ex.output}</pre>
               </div>
               {ex.explanation && (
-                <div className="text-[#6c7086] italic pt-1">{ex.explanation}</div>
+                <div className="text-cream-500 italic pt-1 text-xs">{ex.explanation}</div>
               )}
             </div>
           </div>
@@ -68,11 +65,10 @@ const ProblemStatement: React.FC<ProblemStatementProps> = ({ question, questionI
       </div>
     )}
 
-    {/* Constraints */}
     {question.constraints && (
-      <div className="border-t border-[#313244] pt-4">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#6c7086] mb-2">Constraints</p>
-        <pre className="text-xs text-[#a6adc8] font-mono whitespace-pre-wrap">{question.constraints}</pre>
+      <div className="border-t border-cream-200 pt-4">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-cream-400 mb-2">Constraints</p>
+        <pre className="text-xs text-cream-700 font-mono whitespace-pre-wrap bg-cream-50 border border-cream-100 p-3 rounded-sm">{question.constraints}</pre>
       </div>
     )}
   </div>
