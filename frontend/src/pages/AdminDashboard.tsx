@@ -43,6 +43,11 @@ const AdminDashboard: React.FC = () => {
     setIsMobileMenuOpen(false);
   };
 
+  const queuesRef = React.useRef<QueueSummary[]>([]);
+  useEffect(() => {
+    queuesRef.current = queues;
+  }, [queues]);
+
   const fetchTests = async () => {
     try {
       const res = await testService.getTestHistory();
@@ -64,12 +69,23 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     fetchTests();
     fetchQueues();
-    const interval = setInterval(() => {
-      fetchQueues();
-      fetchTests();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    let interval: ReturnType<typeof setInterval>;
+
+    if (activeSection === 'overview' || activeSection === 'queue') {
+      interval = setInterval(() => {
+        if (activeSection === 'overview' && queuesRef.current.length === 0) {
+          return;
+        }
+        
+        fetchQueues();
+        fetchTests();
+      }, 5000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [activeSection]);
 
   const handleOpenWaitingRoom = async (id: string) => {
     try {
