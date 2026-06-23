@@ -1,4 +1,5 @@
 import React from 'react';
+import { Toaster } from 'react-hot-toast';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -64,6 +65,20 @@ const AuthStorageSync = ({ children }: { children: React.ReactNode }) => {
 
 const App: React.FC = () => (
   <Router>
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: '#1a1917',
+          color: '#faf9f6',
+          fontSize: '13px',
+          fontWeight: 600,
+          borderRadius: '2px',
+          border: '1px solid #2a2926',
+        },
+      }}
+    />
     <AuthStorageSync>
       <Routes>
         <Route path="/" element={<Home />} />

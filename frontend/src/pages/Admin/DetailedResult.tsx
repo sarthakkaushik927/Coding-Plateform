@@ -25,6 +25,7 @@ interface SubmissionDetail {
   score: number;
   answers: Record<string, number>;
   codingAnswers?: Record<string, CodingAnswer>;
+  violations?: { type: string; timestamp: string; count: number }[];
   testId: {
     _id: string;
     title: string;
@@ -206,6 +207,38 @@ const DetailedResult: React.FC = () => {
                 Viewed and marked status is inferred from saved answers because the test currently stores final responses only.
               </div>
             </section>
+
+            {submission.violations && submission.violations.length > 0 && (
+              <section className="bg-white border border-red-200 rounded-sm shadow-sm p-4 md:p-6">
+                <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-red-500 mb-4">Proctoring Log</div>
+                <div className="flex items-center gap-3 mb-4 pb-4 border-b border-red-50">
+                  <div className="text-3xl font-serif text-red-700">{submission.violations.length}</div>
+                  <div className="text-[10px] uppercase tracking-widest font-bold text-red-400">
+                    Violation{submission.violations.length !== 1 ? 's' : ''} Detected
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {submission.violations.map((v, i) => {
+                    const labelMap: Record<string, string> = {
+                      tab_switch: 'Tab Switch',
+                      window_blur: 'Window Switch',
+                      fullscreen_exit: 'Fullscreen Exit',
+                    };
+                    return (
+                      <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                          <span className="font-bold text-cream-900">{labelMap[v.type] || v.type}</span>
+                        </div>
+                        <span className="text-[10px] text-cream-400 font-mono">
+                          {new Date(v.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
           </aside>
 
           <section className="space-y-8 md:space-y-12">

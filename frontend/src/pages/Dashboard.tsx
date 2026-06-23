@@ -109,7 +109,13 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    try {
+                      await document.documentElement.requestFullscreen();
+                    } catch {
+                      // Continue even if fullscreen is denied
+                    }
+
                     if (test.status === 'waiting') {
                       navigate(`/test/wait/${test._id}`);
                     } else if (test.status === 'active') {

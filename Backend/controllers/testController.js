@@ -131,3 +131,21 @@ exports.completeSubmission = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.logViolation = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { type, timestamp, count } = req.body;
+
+    const submission = await Submission.findById(submissionId);
+    if (!submission) return res.status(404).json({ message: 'Submission not found' });
+    if (submission.status === 'completed') return res.status(403).json({ message: 'Test already completed' });
+
+    submission.violations.push({ type, timestamp: new Date(timestamp), count });
+    await submission.save();
+
+    res.json({ message: 'Violation logged', totalViolations: submission.violations.length });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

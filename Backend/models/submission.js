@@ -49,7 +49,12 @@ const submissionSchema = new mongoose.Schema({
   completedAt: {
     type: Date,
     default: null
-  }
+  },
+  violations: [{
+    type: { type: String, enum: ['tab_switch', 'window_blur', 'fullscreen_exit'] },
+    timestamp: { type: Date },
+    count: { type: Number }
+  }]
 }, { timestamps: true });
 
 // Unique compound index: one submission per user per test

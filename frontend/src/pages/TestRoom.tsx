@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import useProtecting from '../hooks/useProtecting';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState } from '../store';
 import {
@@ -50,6 +52,67 @@ const TestRoom: React.FC = () => {
   const [showMobilePanel, setShowMobilePanel] = useState(false);
   const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [initialViolations, setInitialViolations] = useState(0);
+
+  const executeSubmission = useCallback(async (forceComplete: boolean = false) => {
+    const sid = submissionId;
+    const tid = testId;
+    if (!sid || !tid) return;
+
+    setIsSaving(true);
+    try {
+      await flushPendingSync(sid, tid);
+
+      if (!forceComplete && testData?.testType === 'mixed') {
+        navigate(`/coding-test/${tid}`);
+      } else {
+        await testService.completeSubmission(sid);
+        clearTestSession(tid, sid);
+        dispatch(completeTest());
+      }
+    } catch (error) {
+      console.error('Auto-submit failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [submissionId, testId, testData?.testType, navigate, dispatch]);
+
+  const MAX_VIOLATIONS = 3;
+
+  const handleViolation = useCallback((count: number, type: string) => {
+    const labels: Record<string, string> = {
+      tab_switch: 'Tab switch detected',
+      window_blur: 'Window switch detected',
+      fullscreen_exit: 'Fullscreen exit detected',
+    };
+    const remaining = MAX_VIOLATIONS - count;
+
+    if (remaining > 0) {
+      toast.error(`⚠️ ${labels[type] || 'Violation detected'} — ${remaining} warning${remaining !== 1 ? 's' : ''} left before auto-submit`, {
+        duration: 5000,
+        id: 'violation-toast',
+      });
+    } else {
+      toast.error('🚫 Max violations reached — auto-submitting your test', {
+        duration: 6000,
+        id: 'violation-toast',
+      });
+    }
+  }, []);
+
+  const handleAutoSubmit = useCallback(() => {
+    executeSubmission(true);
+  }, [executeSubmission]);
+
+  useProtecting({
+    onViolation: handleViolation,
+    onAutoSubmit: handleAutoSubmit,
+    submissionId,
+    maxViolations: MAX_VIOLATIONS,
+    cooldownMs: 1500,
+    enabled: status === 'active',
+    initialViolations,
+  });
 
   useEffect(() => {
     const initTest = async () => {
@@ -70,6 +133,8 @@ const TestRoom: React.FC = () => {
         const name = user?.name || 'Candidate';
         const submissionRes = await testService.startSubmission(email, name, testId);
         const submission = submissionRes.data;
+        setInitialViolations(submission.violations?.length || 0);
+
         const serverAnswers = normalizeSubmissionAnswers(submission.answers);
         const localSnapshot = loadTestSession(testId, submission._id);
         const merged = mergeTestSession(serverAnswers, localSnapshot, test.questions.length);
@@ -447,7 +512,7 @@ const TestRoom: React.FC = () => {
         </div>
       </main>
 
-      {/* Mobile Bottom Bar — fixed at bottom, visible on small screens */}
+      {/* Mobile Bottom Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-cream-200 px-4 py-3 flex items-center justify-between gap-3 lg:hidden z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
         <button
           onClick={() => setShowMobilePanel(!showMobilePanel)}

@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
+import useProtecting from '../hooks/useProtecting';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import Editor from '@monaco-editor/react';
@@ -24,6 +26,7 @@ export const LANG_META: Record<string, { label: string; monacoLang: string; defa
 interface TestData {
   _id: string; title: string; status: string;
   durationInMinutes: number; startedAt: string;
+  testType?: 'mcq' | 'coding' | 'mixed';
   codingQuestions: CodingQuestion[];
 }
 
@@ -61,6 +64,7 @@ const CodingTestRoom: React.FC = () => {
   const [finished, setFinished]         = useState(false);
   const [activeQIndex, setActiveQIndex] = useState(0);
   const [language, setLanguage]         = useState('javascript');
+  const [initialViolations, setInitialViolations] = useState(0);
 
   const [code, setCode]             = useState<Record<string, string>>({});
   const [submitted, setSubmitted]   = useState<Record<string, boolean>>({});
@@ -86,20 +90,23 @@ const CodingTestRoom: React.FC = () => {
         if (t.status !== 'active' || !t.codingQuestions?.length) { navigate('/dashboard'); return; }
         setTestData(t);
 
-        let currentSubmissionId = existingSubmissionId;
-        if (!currentSubmissionId) {
-          const email = user?.email || 'candidate@example.com';
-          const name = user?.name || 'Candidate';
-          const submissionRes = await testService.startSubmission(email, name, testId);
-          currentSubmissionId = submissionRes.data._id;
+        const email = user?.email || 'candidate@example.com';
+        const name = user?.name || 'Candidate';
+        const submissionRes = await testService.startSubmission(email, name, testId);
+        const fetchedSubmission = submissionRes.data;
+        
+        setInitialViolations(fetchedSubmission.violations?.length || 0);
+        setSubmissionId(fetchedSubmission._id);
+
+        if (!existingSubmissionId) {
           dispatch(startTest({
-            submissionId: currentSubmissionId as string,
+            submissionId: fetchedSubmission._id,
             testId,
             duration: t.durationInMinutes,
             startedAt: t.startedAt
           }));
         }
-        setSubmissionId(currentSubmissionId || null);
+        
         setLoading(false);
       } catch {
         navigate('/dashboard');
@@ -116,6 +123,47 @@ const CodingTestRoom: React.FC = () => {
     };
     return () => es.close();
   }, [testId]);
+
+  const MAX_VIOLATIONS = 3;
+
+  const handleViolation = useCallback((count: number, type: string) => {
+    const labels: Record<string, string> = {
+      tab_switch: 'Tab switch detected',
+      window_blur: 'Window switch detected',
+      fullscreen_exit: 'Fullscreen exit detected',
+    };
+    const remaining = MAX_VIOLATIONS - count;
+
+    if (remaining > 0) {
+      toast.error(`⚠️ ${labels[type] || 'Violation detected'} — ${remaining} warning${remaining !== 1 ? 's' : ''} left before auto-submit`, {
+        duration: 5000,
+        id: 'violation-toast',
+      });
+    } else {
+      toast.error('🚫 Max violations reached — auto-submitting your test', {
+        duration: 6000,
+        id: 'violation-toast',
+      });
+    }
+  }, []);
+
+  const handleAutoSubmit = useCallback(() => {
+    if (submissionId) {
+      testService.completeSubmission(submissionId)
+        .then(() => setFinished(true))
+        .catch(err => console.error('Auto-submit failed:', err));
+    }
+  }, [submissionId]);
+
+  useProtecting({
+    onViolation: handleViolation,
+    onAutoSubmit: handleAutoSubmit,
+    submissionId,
+    maxViolations: MAX_VIOLATIONS,
+    cooldownMs: 1500,
+    enabled: !!testData && !finished,
+    initialViolations,
+  });
 
   const { display: timerDisplay, isWarning } = useCountdown(
     testData?.durationInMinutes ?? 60,
@@ -240,6 +288,15 @@ const CodingTestRoom: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {testData.testType === 'mixed' && (
+          <button
+            onClick={() => navigate(`/test/${testId}`)}
+            className="px-4 py-2 bg-white text-cream-900 text-[10px] font-black uppercase tracking-widest rounded-sm border border-cream-200 transition-all hover:bg-cream-50"
+          >
+            Back to MCQ
+          </button>
+        )}
 
         <button
           onClick={handleFinishTest}

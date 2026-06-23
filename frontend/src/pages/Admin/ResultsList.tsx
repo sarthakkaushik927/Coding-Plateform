@@ -8,6 +8,7 @@ interface SubmissionSummary {
   candidateEmail: string;
   score: number;
   updatedAt: string;
+  violations?: { type: string; timestamp: string; count: number }[];
 }
 
 type SortOption = 'rank' | 'latest' | 'name';
@@ -126,7 +127,7 @@ const ResultsList: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 md:gap-6 mb-6 md:mb-8 pt-6 md:pt-8 border-t border-cream-50">
+                <div className="grid grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8 pt-6 md:pt-8 border-t border-cream-50">
                   <div>
                     <div className="text-[9px] uppercase tracking-widest text-cream-400 font-bold mb-1">Score</div>
                     <div className="text-2xl md:text-3xl font-serif text-cream-950">{sub.score}</div>
@@ -134,6 +135,12 @@ const ResultsList: React.FC = () => {
                   <div>
                     <div className="text-[9px] uppercase tracking-widest text-cream-400 font-bold mb-1">Status</div>
                     <div className="text-[10px] md:text-xs font-bold text-cream-900 mt-2 uppercase tracking-tighter">Completed</div>
+                  </div>
+                  <div>
+                    <div className="text-[9px] uppercase tracking-widest text-cream-400 font-bold mb-1">Violations</div>
+                    <div className={`text-2xl md:text-3xl font-serif ${(sub.violations?.length || 0) > 0 ? 'text-red-700' : 'text-cream-300'}`}>
+                      {sub.violations?.length || 0}
+                    </div>
                   </div>
                 </div>
 
