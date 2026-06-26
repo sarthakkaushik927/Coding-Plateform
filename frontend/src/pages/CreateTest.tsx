@@ -58,6 +58,43 @@ const CreateTest: React.FC = () => {
     setQuestions(updated);
   };
 
+  // ─── Coding Question Handlers ────────────────────────────────────────────
+
+  const handleAddCodingQuestion = () => {
+    setCodingQuestions([...codingQuestions, {
+      title: '', description: '', difficulty: 'medium', points: 10, constraints: '',
+      examples: [], testCases: [{ input: '', expectedOutput: '', isHidden: false }], allowedLanguages: ['javascript', 'python', 'cpp', 'java'], starterCode: {}
+    }]);
+  };
+
+  const handleDeleteCodingQuestion = (index: number) => {
+    setCodingQuestions(codingQuestions.filter((_, i) => i !== index));
+  };
+
+  const handleCodingQuestionChange = (index: number, field: keyof ParseResult['codingQuestions'][0], value: any) => {
+    const updated = [...codingQuestions];
+    updated[index] = { ...updated[index], [field]: value };
+    setCodingQuestions(updated);
+  };
+
+  const handleAddTestCase = (qIndex: number) => {
+    const updated = [...codingQuestions];
+    updated[qIndex].testCases = [...(updated[qIndex].testCases || []), { input: '', expectedOutput: '', isHidden: false }];
+    setCodingQuestions(updated);
+  };
+
+  const handleRemoveTestCase = (qIndex: number, tIndex: number) => {
+    const updated = [...codingQuestions];
+    updated[qIndex].testCases = updated[qIndex].testCases.filter((_, i) => i !== tIndex);
+    setCodingQuestions(updated);
+  };
+
+  const handleTestCaseChange = (qIndex: number, tIndex: number, field: 'input' | 'expectedOutput' | 'isHidden', value: any) => {
+    const updated = [...codingQuestions];
+    updated[qIndex].testCases[tIndex] = { ...updated[qIndex].testCases[tIndex], [field]: value };
+    setCodingQuestions(updated);
+  };
+
   // ─── Excel Import ─────────────────────────────────────────────────────────
 
   const handleImport = (result: ParseResult) => {
@@ -81,13 +118,20 @@ const CreateTest: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Auto-determine testType based on populated questions
+      let finalTestType = testType;
+      const validQuestions = questions.filter(q => q.questionText.trim() !== '');
+      if (validQuestions.length > 0 && codingQuestions.length > 0) finalTestType = 'mixed';
+      else if (codingQuestions.length > 0) finalTestType = 'coding';
+      else finalTestType = 'mcq';
+
       await testService.createTest({
         title,
         description,
         durationInMinutes: duration,
-        questions,
+        questions: validQuestions,
         codingQuestions,
-        testType,
+        testType: finalTestType,
       });
       navigate('/admin');
     } catch (err) {
@@ -288,41 +332,152 @@ const CreateTest: React.FC = () => {
                   className="bg-blue-50/30 p-5 md:p-12 rounded-sm border border-blue-200 shadow-sm space-y-4 relative group"
                 >
                   {/* Large background number */}
-                  <div className="absolute top-3 md:top-6 right-4 md:right-8 text-blue-100 font-serif font-bold text-3xl md:text-6xl select-none group-hover:text-blue-200 transition-colors">
+                  <div className="absolute top-3 md:top-6 right-4 md:right-8 text-blue-100 font-serif font-bold text-3xl md:text-6xl select-none group-hover:text-blue-200 transition-colors z-0">
                     {String(cqIndex + 1).padStart(2, '0')}
                   </div>
 
-                  <div className="relative pt-6 md:pt-0">
+                  {/* Delete button */}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCodingQuestion(cqIndex)}
+                    title="Remove this coding question"
+                    className="absolute top-3 md:top-5 left-4 md:left-8 text-[10px] uppercase tracking-widest font-bold text-blue-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                  >
+                    ✕ Remove
+                  </button>
+
+                  <div className="relative pt-6 md:pt-0 z-10">
                     <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500 mb-2 md:mb-3">Coding Question Title</label>
-                    <div className="input-premium text-sm md:text-lg border-none bg-blue-50 focus:bg-white text-cream-900 cursor-not-allowed opacity-80 py-2 px-3 rounded-sm">
-                      ⚡ {cq.title}
-                    </div>
+                    <input
+                      required
+                      value={cq.title}
+                      onChange={e => handleCodingQuestionChange(cqIndex, 'title', e.target.value)}
+                      className="input-premium text-sm md:text-lg border-blue-200 bg-white focus:bg-white text-cream-900 py-2 px-3 rounded-sm w-full"
+                      placeholder="e.g. Two Sum"
+                    />
                   </div>
 
-                  <div className="relative">
+                  <div className="relative z-10">
                     <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500 mb-2 md:mb-3">Description</label>
-                    <div className="text-sm font-light text-cream-800 bg-blue-50 p-3 rounded-sm">
-                      {cq.description.length > 100 ? cq.description.substring(0, 100) + '...' : cq.description}
+                    <textarea
+                      required
+                      value={cq.description}
+                      onChange={e => handleCodingQuestionChange(cqIndex, 'description', e.target.value)}
+                      className="input-premium h-24 text-sm font-light text-cream-900 bg-white border-blue-200 p-3 rounded-sm w-full"
+                      placeholder="Describe the problem..."
+                    />
+                  </div>
+
+                  <div className="relative z-10">
+                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500 mb-2 md:mb-3">Constraints</label>
+                    <textarea
+                      value={cq.constraints}
+                      onChange={e => handleCodingQuestionChange(cqIndex, 'constraints', e.target.value)}
+                      className="input-premium h-16 text-sm font-light text-cream-900 bg-white border-blue-200 p-3 rounded-sm w-full"
+                      placeholder="e.g. 1 <= n <= 10^5"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-4 pt-2 z-10 relative">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Difficulty:</label>
+                      <select
+                        value={cq.difficulty}
+                        onChange={e => handleCodingQuestionChange(cqIndex, 'difficulty', e.target.value)}
+                        className="input-premium py-2 px-3 border-blue-200 text-sm font-semibold text-blue-800 uppercase bg-white rounded-sm"
+                      >
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Points:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={cq.points}
+                        onChange={e => handleCodingQuestionChange(cqIndex, 'points', Number(e.target.value))}
+                        className="input-premium w-24 py-2 px-3 border-blue-200 text-sm font-semibold text-blue-800 bg-white rounded-sm"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 justify-end pb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Test Cases:</span>
+                        <span className="text-xs font-semibold text-blue-800">{cq.testCases?.length || 0}</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-4 pt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Difficulty:</span>
-                      <span className="text-xs font-semibold text-blue-800 uppercase">{cq.difficulty}</span>
+                  {/* ── Test Cases Builder ── */}
+                  <div className="pt-4 mt-4 border-t border-blue-200/50 relative z-10 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-blue-500">Test Cases (Auto-Grading Data)</label>
+                        <p className="text-[10px] text-blue-400 italic font-semibold mt-1">
+                          ⚠️ CRITICAL: Ensure inputs and outputs have NO trailing spaces. The system does an exact text match!
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddTestCase(cqIndex)}
+                        className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-sm text-[10px] uppercase font-bold tracking-widest transition-colors"
+                      >
+                        + Add Case
+                      </button>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Points:</span>
-                      <span className="text-xs font-semibold text-blue-800">{cq.points}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400">Test Cases:</span>
-                      <span className="text-xs font-semibold text-blue-800">{cq.testCases?.length || 0}</span>
+
+                    <div className="space-y-3">
+                      {(cq.testCases || []).map((tc, tcIndex) => (
+                        <div key={tcIndex} className="flex flex-col md:flex-row gap-3 bg-white p-3 rounded-sm border border-blue-100 relative group/tc shadow-sm">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTestCase(cqIndex, tcIndex)}
+                            className="absolute -top-2 -right-2 w-5 h-5 bg-red-100 text-red-600 rounded-full text-xs flex items-center justify-center opacity-0 group-hover/tc:opacity-100 transition-opacity"
+                          >
+                            ✕
+                          </button>
+                          
+                          <div className="flex-1">
+                            <label className="block text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-1">Standard Input (stdin)</label>
+                            <textarea
+                              required
+                              value={tc.input}
+                              onChange={e => handleTestCaseChange(cqIndex, tcIndex, 'input', e.target.value)}
+                              className="w-full bg-blue-50/50 border border-blue-100 p-2 rounded-sm text-xs font-mono focus:bg-white focus:border-blue-300 transition-colors h-16"
+                              placeholder="e.g. 3 4"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="block text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-1">Expected Output (stdout)</label>
+                            <textarea
+                              required
+                              value={tc.expectedOutput}
+                              onChange={e => handleTestCaseChange(cqIndex, tcIndex, 'expectedOutput', e.target.value)}
+                              className="w-full bg-blue-50/50 border border-blue-100 p-2 rounded-sm text-xs font-mono focus:bg-white focus:border-blue-300 transition-colors h-16"
+                              placeholder="e.g. 12"
+                            />
+                          </div>
+                          <div className="w-full md:w-24 flex md:flex-col items-center md:items-start justify-between md:justify-center gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={tc.isHidden}
+                                onChange={e => handleTestCaseChange(cqIndex, tcIndex, 'isHidden', e.target.checked)}
+                                className="w-3.5 h-3.5 accent-blue-600"
+                              />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-blue-500">Hidden</span>
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                      {(!cq.testCases || cq.testCases.length === 0) && (
+                        <div className="text-[10px] text-red-500 font-bold uppercase tracking-widest p-3 bg-red-50 border border-red-100 rounded-sm text-center">
+                          ⚠️ You must add at least 1 test case for auto-grading to work!
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <p className="text-[10px] text-blue-500 italic pt-2 border-t border-blue-200/50">
-                    * Coding questions uploaded via Excel cannot be edited here. You can edit them in the Admin Dashboard after creating the test.
-                  </p>
                 </div>
               ))}
             </div>
@@ -336,7 +491,14 @@ const CreateTest: React.FC = () => {
             onClick={handleAddQuestion}
             className="flex-1 py-4 border border-dashed border-cream-300 rounded-sm text-[10px] uppercase tracking-widest font-bold text-cream-500 hover:text-cream-950 hover:border-cream-950 transition-all bg-white"
           >
-            + Append New Inquiry
+            + Append MCQ
+          </button>
+          <button
+            type="button"
+            onClick={handleAddCodingQuestion}
+            className="flex-1 py-4 border border-dashed border-blue-300 rounded-sm text-[10px] uppercase tracking-widest font-bold text-blue-500 hover:text-blue-900 hover:border-blue-900 transition-all bg-white"
+          >
+            + Append Coding
           </button>
           <button
             type="submit"
